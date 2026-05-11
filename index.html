@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v8</title>
+    <title>WC Calcutta v9</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -412,11 +412,11 @@
                     <th style="text-align:left;cursor:default">Team</th>
                     <th style="cursor:default">Grp</th>
                     <th style="cursor:default">Advance</th>
-                    <th style="cursor:default">Win R32</th>
-                    <th style="cursor:default">Win R16</th>
-                    <th style="cursor:default">Win QF</th>
-                    <th style="cursor:default">Win SF</th>
-                    <th style="cursor:default">Win Final</th>
+                    <th style="cursor:default">R32 <span style="color:#3b82f6">W</span> / <span style="color:#f97316">SO</span></th>
+                    <th style="cursor:default">R16 <span style="color:#6366f1">W</span> / <span style="color:#f97316">SO</span></th>
+                    <th style="cursor:default">QF <span style="color:#8b5cf6">W</span> / <span style="color:#f97316">SO</span></th>
+                    <th style="cursor:default">SF <span style="color:#a855f7">W</span> / <span style="color:#f97316">SO</span></th>
+                    <th style="cursor:default">Final <span style="color:#facc15">W</span> / <span style="color:#f97316">SO</span></th>
                 </tr>
             </thead>
             <tbody id="advBody"></tbody>
@@ -804,7 +804,7 @@ function runSimulation() {
                 r32Pts: 0, r16Pts: 0, qfPts: 0, sfPts: 0, finalPts: 0,
                 potBonus: 0, totalPts: 0,
             };
-            advAccum[t.name] = { advance: 0, winR32: 0, winR16: 0, winQF: 0, winSF: 0, winFinal: 0 };
+            advAccum[t.name] = { advance: 0, winR32: 0, soR32: 0, winR16: 0, soR16: 0, winQF: 0, soQF: 0, winSF: 0, soSF: 0, winFinal: 0, soFinal: 0 };
         }
     }
 
@@ -831,11 +831,16 @@ function runSimulation() {
                 // Track advancement
                 const ad = advAccum[name];
                 if (stats.advanceBonus > 0) ad.advance++;
-                if (stats.r32Pts > 0 && stats.r32Pts >= 10) ad.winR32++;
-                if (stats.r16Pts > 0 && stats.r16Pts >= 20) ad.winR16++;
-                if (stats.qfPts > 0 && stats.qfPts >= 50) ad.winQF++;
-                if (stats.sfPts > 0 && stats.sfPts >= 100) ad.winSF++;
-                if (stats.finalPts > 0 && stats.finalPts >= 200) ad.winFinal++;
+                if (stats.r32Pts >= 10) ad.winR32++;
+                else if (stats.r32Pts > 0) ad.soR32++;
+                if (stats.r16Pts >= 20) ad.winR16++;
+                else if (stats.r16Pts > 0) ad.soR16++;
+                if (stats.qfPts >= 50) ad.winQF++;
+                else if (stats.qfPts > 0) ad.soQF++;
+                if (stats.sfPts >= 100) ad.winSF++;
+                else if (stats.sfPts > 0) ad.soSF++;
+                if (stats.finalPts >= 200) ad.winFinal++;
+                else if (stats.finalPts > 0) ad.soFinal++;
             }
         }
         completed = end;
@@ -870,11 +875,11 @@ function runSimulation() {
                 advResults[name] = {
                     group: accum[name].group,
                     advance: ad.advance / numSims,
-                    winR32: ad.winR32 / numSims,
-                    winR16: ad.winR16 / numSims,
-                    winQF: ad.winQF / numSims,
-                    winSF: ad.winSF / numSims,
-                    winFinal: ad.winFinal / numSims,
+                    winR32: ad.winR32 / numSims, soR32: ad.soR32 / numSims,
+                    winR16: ad.winR16 / numSims, soR16: ad.soR16 / numSims,
+                    winQF: ad.winQF / numSims, soQF: ad.soQF / numSims,
+                    winSF: ad.winSF / numSims, soSF: ad.soSF / numSims,
+                    winFinal: ad.winFinal / numSims, soFinal: ad.soFinal / numSims,
                 };
             }
             renderAll();
@@ -1022,22 +1027,26 @@ function renderAdvancement() {
     data.sort((a, b) => b.winFinal - a.winFinal || b.advance - a.advance);
 
     const tbody = document.getElementById('advBody');
-    const maxBarWidth = 80; // px
+    const maxBarWidth = 60; // px
     const fmtPct = v => (v * 100).toFixed(1) + '%';
     const bar = (v, color) => {
         const w = Math.max(v * maxBarWidth, v > 0 ? 1 : 0);
-        return `<span class="adv-bar" style="width:${w}px;background:${color}"></span> ${fmtPct(v)}`;
+        return `<span class="adv-bar" style="width:${w}px;background:${color}"></span>`;
+    };
+    const winSo = (win, so, winColor) => {
+        return `${bar(win, winColor)}<span style="color:${winColor}">${fmtPct(win)}</span>`
+            + (so > 0 ? ` <span style="color:#64748b">/</span> <span style="color:#f97316">${fmtPct(so)}</span>` : '');
     };
 
     tbody.innerHTML = data.map(t => `<tr>
         <td class="team-name">${t.name}</td>
         <td class="group-cell">${t.group}</td>
-        <td>${bar(t.advance, '#22c55e')}</td>
-        <td>${bar(t.winR32, '#3b82f6')}</td>
-        <td>${bar(t.winR16, '#6366f1')}</td>
-        <td>${bar(t.winQF, '#8b5cf6')}</td>
-        <td>${bar(t.winSF, '#a855f7')}</td>
-        <td>${bar(t.winFinal, '#facc15')}</td>
+        <td>${bar(t.advance, '#22c55e')} <span style="color:#22c55e">${fmtPct(t.advance)}</span></td>
+        <td>${winSo(t.winR32, t.soR32, '#3b82f6')}</td>
+        <td>${winSo(t.winR16, t.soR16, '#6366f1')}</td>
+        <td>${winSo(t.winQF, t.soQF, '#8b5cf6')}</td>
+        <td>${winSo(t.winSF, t.soSF, '#a855f7')}</td>
+        <td>${winSo(t.winFinal, t.soFinal, '#facc15')}</td>
     </tr>`).join('');
 }
 
