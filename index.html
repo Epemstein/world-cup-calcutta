@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v21</title>
+    <title>WC Calcutta v22</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -396,6 +396,8 @@
             th, td { padding: 4px 3px; }
         }
     </style>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -1652,6 +1654,127 @@ document.querySelectorAll('#stageTable th, #breakdownTable th').forEach(th => {
         }
         renderAll();
     });
+});
+
+// ====== FIREBASE ======
+const firebaseConfig = {
+    apiKey: "AIzaSyBt0nIPV-IsH22wSfFNB76qug45Nxkdef4",
+    authDomain: "wc-calcutta-be888.firebaseapp.com",
+    databaseURL: "https://wc-calcutta-be888-default-rtdb.firebaseio.com",
+    projectId: "wc-calcutta-be888",
+    storageBucket: "wc-calcutta-be888.firebasestorage.app",
+    messagingSenderId: "658176201775",
+    appId: "1:658176201775:web:3ebf8bbaeb8c126ba162da"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Flag to prevent write-back loops when receiving remote updates
+let suppressSync = false;
+
+// --- Sync Auction Prices ---
+const auctionRef = db.ref('auction');
+auctionRef.on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    suppressSync = true;
+    // Update local auction prices
+    for (const key of Object.keys(auctionPrices)) delete auctionPrices[key];
+    for (const [name, price] of Object.entries(data)) {
+        auctionPrices[name] = price;
+    }
+    // Update input fields if they exist
+    document.querySelectorAll('#stageBody input[type="number"]').forEach(input => {
+        // Find team name from the row
+        const row = input.closest('tr');
+        const teamName = row?.querySelector('.team-name')?.textContent;
+        if (teamName && data[teamName] != null) {
+            input.value = data[teamName];
+        } else if (teamName) {
+            input.value = '';
+        }
+    });
+    updateStageValues();
+    suppressSync = false;
+});
+
+// Override onAuctionInput to also push to Firebase
+const _origOnAuctionInput = onAuctionInput;
+onAuctionInput = function(name, value) {
+    const v = parseFloat(value);
+    if (!isNaN(v) && v > 0) {
+        auctionPrices[name] = v;
+        if (!suppressSync) auctionRef.child(name).set(v);
+    } else {
+        delete auctionPrices[name];
+        if (!suppressSync) auctionRef.child(name).remove();
+    }
+    updateStageValues();
+};
+
+// --- Sync ELO Adjustments ---
+const eloRef = db.ref('eloAdj');
+eloRef.on('value', (snapshot) => {
+    const data = snapshot.val() || {};
+    suppressSync = true;
+    for (const [g, teams] of Object.entries(GROUPS)) {
+        for (const t of teams) {
+            const key = g + '_' + t.name.replace(/[^a-zA-Z0-9]/g, '_');
+            if (data[key] != null) {
+                t.adj = data[key];
+            }
+        }
+    }
+    renderEloEditor();
+    renderMatchups();
+    suppressSync = false;
+});
+
+// Override updateAdj to also push to Firebase
+const _origUpdateAdj = updateAdj;
+updateAdj = function(group, name, val) {
+    const team = GROUPS[group].find(t => t.name === name);
+    if (team) {
+        team.adj = parseInt(val) || 0;
+        updateEffDisplay(team, group, name);
+        if (!suppressSync) {
+            const key = group + '_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+            eloRef.child(key).set(team.adj);
+        }
+    }
+};
+
+const _origUpdateAdjPreview = updateAdjPreview;
+updateAdjPreview = function(input, group, name) {
+    const team = GROUPS[group].find(t => t.name === name);
+    if (team) {
+        team.adj = parseInt(input.value) || 0;
+        updateEffDisplay(team, group, name);
+        if (!suppressSync) {
+            const key = group + '_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+            eloRef.child(key).set(team.adj);
+        }
+    }
+    renderMatchups();
+};
+
+// --- Sync Pot Size ---
+const potRef = db.ref('potSize');
+potRef.on('value', (snapshot) => {
+    const val = snapshot.val();
+    if (val != null) {
+        suppressSync = true;
+        document.getElementById('potSize').value = val;
+        updateStageValues();
+        suppressSync = false;
+    }
+});
+
+// Override pot size input
+document.getElementById('potSize').addEventListener('input', () => {
+    const val = parseFloat(document.getElementById('potSize').value) || 0;
+    if (!suppressSync) potRef.set(val);
+    updateStageValues();
 });
 
 // ====== INIT ======
