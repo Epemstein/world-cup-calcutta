@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v26</title>
+    <title>WC Calcutta v27</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -458,19 +458,24 @@
     <table id="stageTable">
         <thead>
             <tr>
-                <th data-col="rank">#</th>
-                <th data-col="team" style="text-align:left">Team</th>
-                <th data-col="pctPot">% Pot</th>
-                <th data-col="price">Fair $</th>
-                <th data-col="auctionPrice">Auction $</th>
-                <th data-col="edge">Edge</th>
-                <th data-col="group">Grp</th>
-                <th data-col="pot">Pot</th>
-                <th data-col="elo">ELO</th>
-                <th data-col="totalPts" class="sorted-desc">Exp Pts</th>
+                <th rowspan="2" data-col="rank">#</th>
+                <th rowspan="2" data-col="team" style="text-align:left">Team</th>
+                <th rowspan="2" data-col="pctPot">% Pot</th>
+                <th rowspan="2" data-col="price">Fair $</th>
+                <th rowspan="2" data-col="auctionPrice">Auction $</th>
+                <th rowspan="2" data-col="edge">Edge</th>
+                <th rowspan="2" data-col="group">Grp</th>
+                <th rowspan="2" data-col="pot">Pot</th>
+                <th rowspan="2" data-col="elo">ELO</th>
+                <th rowspan="2" data-col="totalPts" class="sorted-desc">Exp Pts</th>
+                <th colspan="5" style="cursor:default;border-bottom:1px solid #a78bfa;color:#a78bfa">Group Stage</th>
+                <th colspan="5" style="cursor:default;border-bottom:1px solid #f472b6;color:#f472b6">Knockout</th>
+            </tr>
+            <tr>
                 <th data-col="grp1st" style="color:#34d399">1st</th>
                 <th data-col="grp2nd" style="color:#60a5fa">2nd</th>
                 <th data-col="grp3rd" style="color:#fbbf24">3rd</th>
+                <th data-col="grp4th" style="color:#ef4444">4th</th>
                 <th data-col="advance" style="color:#22c55e">Adv</th>
                 <th data-col="winR32">R32</th>
                 <th data-col="winR16">R16</th>
@@ -1191,6 +1196,7 @@ function renderStageTable(data) {
             <td style="color:#34d399">${fmtPct(t.grp1st || 0)}</td>
             <td style="color:#60a5fa">${fmtPct(t.grp2nd || 0)}</td>
             <td style="color:#fbbf24">${fmtPct(t.grp3rd || 0)}</td>
+            <td style="color:#ef4444">${fmtPct(t.grp4th || 0)}</td>
             <td style="color:#22c55e">${fmtPct(t.advance || 0)}</td>
             <td>${fmtPct(t.winR32 || 0)}</td>
             <td>${fmtPct(t.winR16 || 0)}</td>
