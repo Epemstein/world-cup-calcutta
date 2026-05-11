@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta — v7</title>
+    <title>WC Calcutta v8</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -112,6 +112,7 @@
             user-select: none;
         }
         th:hover { color: #60a5fa; }
+        th[title] { text-decoration: underline dotted #475569; text-underline-offset: 3px; }
         th.sorted-asc::after { content: " ▲"; font-size: 0.7rem; }
         th.sorted-desc::after { content: " ▼"; font-size: 0.7rem; }
         td {
@@ -379,18 +380,18 @@
             <tr>
                 <th data-col="rank">#</th>
                 <th data-col="team" style="text-align:left">Team</th>
-                <th data-col="group">Grp</th>
-                <th data-col="poolWinPts" class="pts-pool">Pool W</th>
-                <th data-col="poolDrawPts" class="pts-pool">Pool D</th>
-                <th data-col="advanceBonus" class="pts-pool">Adv+5</th>
-                <th data-col="groupWinBonus" class="pts-pool">1st+5</th>
-                <th data-col="r32Pts" class="pts-knockout">R32</th>
-                <th data-col="r16Pts" class="pts-knockout">R16</th>
-                <th data-col="qfPts" class="pts-knockout">QF</th>
-                <th data-col="sfPts" class="pts-knockout">SF</th>
-                <th data-col="finalPts" class="pts-knockout">Final</th>
-                <th data-col="potBonus" class="pts-bonus">Pot Bonus</th>
-                <th data-col="totalPts" class="sorted-desc" style="color:#60a5fa;font-weight:700">Total</th>
+                <th data-col="group" title="Group assignment (A through L)">Grp</th>
+                <th data-col="poolWinPts" class="pts-pool" title="Pool Play Wins: +3 points per win in group stage. Each team plays 3 group matches.">Pool W</th>
+                <th data-col="poolDrawPts" class="pts-pool" title="Pool Play Draws: +1 point per draw in group stage.">Pool D</th>
+                <th data-col="advanceBonus" class="pts-pool" title="Advance Bonus: +5 points for advancing to the knockout round (top 2 per group + 8 best 3rd-place teams).">Adv+5</th>
+                <th data-col="groupWinBonus" class="pts-pool" title="Group Winner Bonus: +5 additional points for finishing 1st in your group.">1st+5</th>
+                <th data-col="r32Pts" class="pts-knockout" title="Round of 32: +10 points for a win, +2 points for a shootout loss.">R32</th>
+                <th data-col="r16Pts" class="pts-knockout" title="Round of 16: +20 points for a win, +4 points for a shootout loss.">R16</th>
+                <th data-col="qfPts" class="pts-knockout" title="Quarterfinal: +50 points for a win, +10 points for a shootout loss.">QF</th>
+                <th data-col="sfPts" class="pts-knockout" title="Semifinal: +100 points for a win, +20 points for a shootout loss.">SF</th>
+                <th data-col="finalPts" class="pts-knockout" title="Final: +200 points for a win, +40 points for a shootout loss.">Final</th>
+                <th data-col="potBonus" class="pts-bonus" title="Pot Bonus: +48 points to the highest-scoring team in each FIFA Pot (1-4). Split evenly if tied.">Pot Bonus</th>
+                <th data-col="totalPts" class="sorted-desc" style="color:#60a5fa;font-weight:700" title="Total expected points across all stages (average over all simulations).">Total</th>
             </tr>
         </thead>
         <tbody id="breakdownBody"></tbody>
