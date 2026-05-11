@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v12</title>
+    <title>WC Calcutta v13</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -613,38 +613,39 @@ const POT_BONUS = 48;
 let simResults = null;
 let advResults = null; // advancement probability tracking
 
+// Draw model parameters (calibratable)
+let DRAW_BASE = 0.25;
+let DRAW_DECAY = 600;
+const DEFAULT_DRAW_BASE = 0.25;
+const DEFAULT_DRAW_DECAY = 600;
+
 // ====== ELO-BASED MATCH SIMULATION ======
 function winProb(eloA, eloB) {
     return 1.0 / (1.0 + Math.pow(10, (eloB - eloA) / 400));
 }
 
+function drawProb(eloA, eloB) {
+    const diff = Math.abs(eloA - eloB);
+    return DRAW_BASE * Math.exp(-diff / DRAW_DECAY);
+}
+
 function simulateMatch(eloA, eloB) {
     const pA = winProb(eloA, eloB);
-    // In group stage: ~25% of matches draw historically
-    // We model: draw probability peaks when teams are equal
-    const drawBase = 0.25;
-    const diff = Math.abs(eloA - eloB);
-    const drawProb = drawBase * Math.exp(-diff / 600);
+    const dp = drawProb(eloA, eloB);
     const r = Math.random();
-    if (r < drawProb) return 'draw';
-    const adjustedPA = pA * (1 - drawProb);
-    return Math.random() < (adjustedPA / (1 - drawProb)) ? 'A' : 'B';
+    if (r < dp) return 'draw';
+    return Math.random() < (pA * (1 - dp)) / (1 - dp) ? 'A' : 'B';
 }
 
 function simulateKOMatch(eloA, eloB) {
-    // No draws in knockout - but track if it "would have" been a draw (shootout)
     const pA = winProb(eloA, eloB);
-    const drawBase = 0.25;
-    const diff = Math.abs(eloA - eloB);
-    const drawProb = drawBase * Math.exp(-diff / 600);
+    const dp = drawProb(eloA, eloB);
     const r = Math.random();
-    if (r < drawProb) {
-        // Shootout: 50/50 with slight edge to better team
+    if (r < dp) {
         const soProbA = 0.45 + 0.1 * pA;
         return { winner: Math.random() < soProbA ? 'A' : 'B', shootout: true };
     }
-    const adjustedPA = pA * (1 - drawProb);
-    const winner = Math.random() < (adjustedPA / (1 - drawProb)) ? 'A' : 'B';
+    const winner = Math.random() < pA ? 'A' : 'B';
     return { winner, shootout: false };
 }
 
@@ -1068,11 +1069,10 @@ function updatePrices() {
 // ====== MATCHUPS ======
 function computeMatchProbs(eloA, eloB) {
     const pA = winProb(eloA, eloB);
-    const diff = Math.abs(eloA - eloB);
-    const drawProb = 0.25 * Math.exp(-diff / 600);
-    const winA = pA * (1 - drawProb);
-    const winB = (1 - pA) * (1 - drawProb);
-    return { winA: winA, draw: drawProb, winB: winB };
+    const dp = drawProb(eloA, eloB);
+    const winA = pA * (1 - dp);
+    const winB = (1 - pA) * (1 - dp);
+    return { winA: winA, draw: dp, winB: winB };
 }
 
 function renderMatchups() {
@@ -1191,70 +1191,72 @@ function resetElo() {
             teams[i].adj = 0;
         }
     }
+    DRAW_BASE = DEFAULT_DRAW_BASE;
+    DRAW_DECAY = DEFAULT_DRAW_DECAY;
     renderEloEditor();
     renderMatchups();
 }
 
 // ====== KALSHI MARKET CALIBRATION ======
-// Kalshi match odds [teamA, teamB, pA_win, pB_win] (draw excluded, we use h2h ratio)
+// Kalshi match odds [teamA, teamB, pA_win, pB_win, pDraw]
 const KALSHI_MATCHES = [
     // Matchday 1
-    ["Mexico", "South Africa", 0.64, 0.11],
-    ["United States", "Paraguay", 0.48, 0.27],
-    ["Qatar", "Switzerland", 0.10, 0.73],
-    ["Brazil", "Morocco", 0.63, 0.17],
-    ["Haiti", "Scotland", 0.16, 0.67],
-    ["Germany", "Curaçao", 0.90, 0.03],
-    ["Netherlands", "Japan", 0.49, 0.29],
-    ["Ivory Coast", "Ecuador", 0.23, 0.43],
-    ["Spain", "Cape Verde", 0.89, 0.05],
-    ["Belgium", "Egypt", 0.62, 0.24],
-    ["Saudi Arabia", "Uruguay", 0.12, 0.63],
-    ["Iran", "New Zealand", 0.54, 0.17],
-    ["France", "Senegal", 0.69, 0.14],
-    ["Argentina", "Algeria", 0.77, 0.14],
-    ["Austria", "Jordan", 0.73, 0.14],
-    ["England", "Croatia", 0.58, 0.22],
-    ["Ghana", "Panama", 0.49, 0.28],
-    ["Uzbekistan", "Colombia", 0.15, 0.76],
+    ["Mexico", "South Africa", 0.64, 0.11, 0.22],
+    ["United States", "Paraguay", 0.48, 0.27, 0.24],
+    ["Qatar", "Switzerland", 0.10, 0.73, 0.14],
+    ["Brazil", "Morocco", 0.63, 0.17, 0.21],
+    ["Haiti", "Scotland", 0.16, 0.67, 0.18],
+    ["Germany", "Curaçao", 0.90, 0.03, 0.12],
+    ["Netherlands", "Japan", 0.49, 0.29, 0.25],
+    ["Ivory Coast", "Ecuador", 0.23, 0.43, 0.34],
+    ["Spain", "Cape Verde", 0.89, 0.05, 0.09],
+    ["Belgium", "Egypt", 0.62, 0.24, 0.24],
+    ["Saudi Arabia", "Uruguay", 0.12, 0.63, 0.23],
+    ["Iran", "New Zealand", 0.54, 0.17, 0.28],
+    ["France", "Senegal", 0.69, 0.14, 0.19],
+    ["Argentina", "Algeria", 0.77, 0.14, 0.16],
+    ["Austria", "Jordan", 0.73, 0.14, 0.17],
+    ["England", "Croatia", 0.58, 0.22, 0.27],
+    ["Ghana", "Panama", 0.49, 0.28, 0.26],
+    ["Uzbekistan", "Colombia", 0.15, 0.76, 0.20],
     // Matchday 2
-    ["Canada", "Qatar", 0.68, 0.29],
-    ["Mexico", "South Korea", 0.54, 0.27],
-    ["United States", "Australia", 0.55, 0.39],
-    ["Scotland", "Morocco", 0.58, 0.67],
-    ["Brazil", "Haiti", 0.95, 0.05],
-    ["Germany", "Ivory Coast", 0.75, 0.35],
-    ["Ecuador", "Curaçao", 0.76, 0.06],
-    ["Tunisia", "Japan", 0.26, 0.59],
-    ["Spain", "Saudi Arabia", 0.84, 0.06],
-    ["Belgium", "Iran", 0.79, 0.45],
-    ["Uruguay", "Cape Verde", 0.72, 0.30],
-    ["New Zealand", "Egypt", 0.28, 0.44],
-    ["Argentina", "Austria", 0.52, 0.26],
-    ["Norway", "Senegal", 0.50, 0.37],
-    ["Jordan", "Algeria", 0.48, 0.64],
-    ["Portugal", "Uzbekistan", 0.79, 0.08],
-    ["England", "Ghana", 0.76, 0.12],
-    ["Panama", "Croatia", 0.45, 0.35],
+    ["Canada", "Qatar", 0.68, 0.29, 0.36],
+    ["Mexico", "South Korea", 0.54, 0.27, 0.30],
+    ["United States", "Australia", 0.55, 0.39, 0.13],
+    ["Scotland", "Morocco", 0.58, 0.67, 0.31],
+    ["Brazil", "Haiti", 0.95, 0.05, 0.03],
+    ["Germany", "Ivory Coast", 0.75, 0.35, 0.20],
+    ["Ecuador", "Curaçao", 0.76, 0.06, 0.05],
+    ["Tunisia", "Japan", 0.26, 0.59, 0.50],
+    ["Spain", "Saudi Arabia", 0.84, 0.06, 0.08],
+    ["Belgium", "Iran", 0.79, 0.45, 0.50],
+    ["Uruguay", "Cape Verde", 0.72, 0.30, 0.49],
+    ["New Zealand", "Egypt", 0.28, 0.44, 0.40],
+    ["Argentina", "Austria", 0.52, 0.26, 0.58],
+    ["Norway", "Senegal", 0.50, 0.37, 0.61],
+    ["Jordan", "Algeria", 0.48, 0.64, 0.26],
+    ["Portugal", "Uzbekistan", 0.79, 0.08, 0.23],
+    ["England", "Ghana", 0.76, 0.12, 0.30],
+    ["Panama", "Croatia", 0.45, 0.35, 0.23],
     // Matchday 3
-    ["Switzerland", "Canada", 0.69, 0.59],
-    ["Morocco", "Haiti", 0.75, 0.47],
-    ["Scotland", "Brazil", 0.39, 0.48],
-    ["South Africa", "South Korea", 0.15, 0.65],
-    ["Curaçao", "Ivory Coast", 0.30, 0.15],
-    ["Ecuador", "Germany", 0.20, 0.64],
-    ["Tunisia", "Netherlands", 0.47, 0.78],
-    ["Paraguay", "Australia", 0.75, 0.57],
-    ["Norway", "France", 0.16, 0.58],
-    ["Cape Verde", "Saudi Arabia", 0.78, 0.50],
-    ["Uruguay", "Spain", 0.45, 0.50],
-    ["Egypt", "Iran", 0.60, 0.30],
-    ["New Zealand", "Belgium", 0.05, 0.77],
-    ["Croatia", "Ghana", 0.25, 0.49],
-    ["Panama", "England", 0.04, 0.81],
-    ["Colombia", "Portugal", 0.52, 0.39],
-    ["Algeria", "Austria", 0.55, 0.25],
-    ["Jordan", "Argentina", 0.05, 0.73],
+    ["Switzerland", "Canada", 0.69, 0.59, 0.48],
+    ["Morocco", "Haiti", 0.75, 0.47, 0.28],
+    ["Scotland", "Brazil", 0.39, 0.48, 0.40],
+    ["South Africa", "South Korea", 0.15, 0.65, 0.49],
+    ["Curaçao", "Ivory Coast", 0.30, 0.15, 0.10],
+    ["Ecuador", "Germany", 0.20, 0.64, 0.45],
+    ["Tunisia", "Netherlands", 0.47, 0.78, 0.19],
+    ["Paraguay", "Australia", 0.75, 0.57, 0.31],
+    ["Norway", "France", 0.16, 0.58, 0.16],
+    ["Cape Verde", "Saudi Arabia", 0.78, 0.50, 0.34],
+    ["Uruguay", "Spain", 0.45, 0.50, 0.45],
+    ["Egypt", "Iran", 0.60, 0.30, 0.46],
+    ["New Zealand", "Belgium", 0.05, 0.77, 0.24],
+    ["Croatia", "Ghana", 0.25, 0.49, 0.09],
+    ["Panama", "England", 0.04, 0.81, 0.08],
+    ["Colombia", "Portugal", 0.52, 0.39, 0.14],
+    ["Algeria", "Austria", 0.55, 0.25, 0.05],
+    ["Jordan", "Argentina", 0.05, 0.73, 0.37],
 ];
 
 function calibrateToMarket() {
@@ -1263,7 +1265,6 @@ function calibrateToMarket() {
     for (const [g, teams] of Object.entries(GROUPS)) {
         for (let i = 0; i < teams.length; i++) {
             teamLookup[teams[i].name] = { group: g, idx: i };
-            // Also map alternate names
             if (teams[i].name === "Bosnia & Herzegovina") teamLookup["Bosnia and Herzegovina"] = { group: g, idx: i };
             if (teams[i].name === "IR Iran" || teams[i].name === "Iran") {
                 teamLookup["Iran"] = { group: g, idx: i };
@@ -1272,30 +1273,54 @@ function calibrateToMarket() {
         }
     }
 
-    // Collect valid matches
+    // Collect valid matches with normalized probabilities
     const matches = [];
-    for (const [nameA, nameB, pA, pB] of KALSHI_MATCHES) {
+    for (const [nameA, nameB, pA, pB, pD] of KALSHI_MATCHES) {
         const a = teamLookup[nameA], b = teamLookup[nameB];
         if (!a || !b || pA + pB === 0) continue;
-        // Normalize to head-to-head (strip draw)
-        const h2hA = pA / (pA + pB);
-        // Implied ELO difference: diff = 400 * log10(h2hA / (1 - h2hA))
+        // Normalize probabilities (Kalshi has overround)
+        const total = pA + pB + pD;
+        const normA = pA / total, normB = pB / total, normD = pD / total;
+        const h2hA = normA / (normA + normB);
         const impliedDiff = 400 * Math.log10(h2hA / (1 - h2hA));
-        matches.push({ a: nameA, b: nameB, impliedDiff });
+        matches.push({ a: nameA, b: nameB, impliedDiff, normD });
     }
 
-    // Solve for ELO adjustments using iterative least-squares
-    // We want adj[i] - adj[j] ≈ impliedDiff - (baseElo[i] - baseElo[j])
-    // i.e., adj[i] - adj[j] ≈ impliedDiff - baseDiff = residual
+    // Step 1: Calibrate draw parameters to match market draw rates
+    // For each match, Kalshi draw% should ≈ DRAW_BASE * exp(-|eloDiff|/DRAW_DECAY)
+    // We fit DRAW_BASE and DRAW_DECAY using grid search to minimize MSE
+    // (need to do this jointly with ELO fitting, so we iterate)
+    let bestBase = 0.25, bestDecay = 600, bestErr = Infinity;
+    for (let base = 0.10; base <= 0.35; base += 0.01) {
+        for (let decay = 200; decay <= 1200; decay += 50) {
+            let err = 0;
+            for (const m of matches) {
+                const la = teamLookup[m.a], lb = teamLookup[m.b];
+                const eloA = GROUPS[la.group][la.idx].elo;
+                const eloB = GROUPS[lb.group][lb.idx].elo;
+                const diff = Math.abs(eloA - eloB);
+                const predDraw = base * Math.exp(-diff / decay);
+                err += (predDraw - m.normD) ** 2;
+            }
+            if (err < bestErr) {
+                bestErr = err;
+                bestBase = base;
+                bestDecay = decay;
+            }
+        }
+    }
+    DRAW_BASE = bestBase;
+    DRAW_DECAY = bestDecay;
+
+    // Step 2: Calibrate ELO adjustments
     const teamNames = Object.keys(teamLookup).filter(n => {
         const t = teamLookup[n];
-        return GROUPS[t.group][t.idx].name === n; // only canonical names
+        return GROUPS[t.group][t.idx].name === n;
     });
     const adjMap = {};
     teamNames.forEach(n => adjMap[n] = 0);
 
-    // Iterative relaxation (converges quickly)
-    for (let iter = 0; iter < 200; iter++) {
+    for (let iter = 0; iter < 300; iter++) {
         for (const { a, b, impliedDiff } of matches) {
             if (!(a in adjMap) || !(b in adjMap)) continue;
             const la = teamLookup[a], lb = teamLookup[b];
@@ -1303,16 +1328,15 @@ function calibrateToMarket() {
             const baseB = GROUPS[lb.group][lb.idx].elo;
             const currentDiff = (baseA + adjMap[a]) - (baseB + adjMap[b]);
             const error = impliedDiff - currentDiff;
-            // Split the correction between both teams
-            adjMap[a] += error * 0.05;
-            adjMap[b] -= error * 0.05;
+            adjMap[a] += error * 0.04;
+            adjMap[b] -= error * 0.04;
         }
     }
 
-    // Round and apply adjustments
+    // Apply adjustments
     for (const name of teamNames) {
         const { group, idx } = teamLookup[name];
-        GROUPS[group][idx].adj = Math.round(adjMap[name] / 5) * 5; // round to nearest 5
+        GROUPS[group][idx].adj = Math.round(adjMap[name] / 5) * 5;
     }
 
     renderEloEditor();
