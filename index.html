@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v15</title>
+    <title>WC Calcutta v16</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -345,6 +345,20 @@
             min-width: 1px;
         }
 
+        /* Market comparison tab */
+        .market-section { margin-bottom: 30px; }
+        .market-section h2 { font-size: 1.1rem; margin-bottom: 12px; }
+        .delta-pos { color: #34d399; }
+        .delta-neg { color: #ef4444; }
+        .delta-neutral { color: #64748b; }
+        .delta-bar {
+            display: inline-block;
+            height: 12px;
+            vertical-align: middle;
+            border-radius: 2px;
+            min-width: 1px;
+        }
+
         /* Progress bar */
         .progress-bar {
             height: 4px;
@@ -422,6 +436,7 @@
     <button class="tab-btn active" onclick="switchTab('stage')">Stage</button>
     <button class="tab-btn" onclick="switchTab('breakdown')">Points Breakdown</button>
     <button class="tab-btn" onclick="switchTab('matchups')">Matchups</button>
+    <button class="tab-btn" onclick="switchTab('market')">vs Market</button>
 </div>
 
 <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
@@ -508,6 +523,31 @@
             </thead>
             <tbody id="advBody"></tbody>
         </table>
+    </div>
+</div>
+
+<!-- MARKET COMPARISON TAB -->
+<div class="tab-content" id="tab-market">
+    <div class="market-section">
+        <h2>Outright Winner: Our Sim vs FanDuel</h2>
+        <p style="color:#64748b;font-size:0.8rem;margin-bottom:12px;">Run simulation to compare. Green = we're higher than market, Red = we're lower.</p>
+        <table id="marketWinnerTable">
+            <thead>
+                <tr>
+                    <th style="text-align:left;cursor:default">#</th>
+                    <th style="text-align:left;cursor:default">Team</th>
+                    <th style="cursor:default">FanDuel</th>
+                    <th style="cursor:default">Our Sim</th>
+                    <th style="cursor:default">Delta</th>
+                    <th style="cursor:default;text-align:left">Edge</th>
+                </tr>
+            </thead>
+            <tbody id="marketWinnerBody"></tbody>
+        </table>
+    </div>
+    <div class="market-section">
+        <h2>Group Winners: Our Sim vs FanDuel</h2>
+        <div class="matchups-container" id="marketGroupGrid"></div>
     </div>
 </div>
 
@@ -999,6 +1039,7 @@ function renderAll() {
     renderBreakdownTable(data);
     renderMatchups();
     renderAdvancement();
+    renderMarketComparison();
 }
 
 function renderStageTable(data) {
@@ -1136,6 +1177,76 @@ function renderAdvancement() {
         <td>${winSo(t.winSF, t.soSF, '#a855f7')}</td>
         <td>${winSo(t.winFinal, t.soFinal, '#facc15')}</td>
     </tr>`).join('');
+}
+
+// ====== MARKET COMPARISON ======
+function renderMarketComparison() {
+    if (!advResults) return;
+
+    // --- Outright winner comparison ---
+    const winnerData = [];
+    for (const [name, marketProb] of Object.entries(MARKET_WINNER)) {
+        const adv = advResults[name];
+        const simProb = adv ? adv.winFinal : 0;
+        const delta = simProb - marketProb;
+        winnerData.push({ name, marketProb, simProb, delta });
+    }
+    // Sort by market prob descending
+    winnerData.sort((a, b) => b.marketProb - a.marketProb);
+
+    const tbody = document.getElementById('marketWinnerBody');
+    const fmtPct = v => (v * 100).toFixed(2) + '%';
+    const fmtDelta = d => {
+        const pct = (d * 100).toFixed(2);
+        const sign = d > 0 ? '+' : '';
+        const cls = d > 0.005 ? 'delta-pos' : d < -0.005 ? 'delta-neg' : 'delta-neutral';
+        return `<span class="${cls}">${sign}${pct}%</span>`;
+    };
+    const edgeBar = d => {
+        const maxW = 60;
+        const w = Math.min(Math.abs(d) * 100 * 10, maxW); // scale: 1% = 10px
+        const color = d > 0 ? '#34d399' : '#ef4444';
+        const label = d > 0 ? 'OVER' : d < 0 ? 'UNDER' : '';
+        if (Math.abs(d) < 0.005) return '<span class="delta-neutral">—</span>';
+        return `<span class="delta-bar" style="width:${w}px;background:${color}"></span> <span style="color:${color};font-size:0.7rem;">${label}</span>`;
+    };
+
+    tbody.innerHTML = winnerData.map((t, i) => `<tr>
+        <td>${i + 1}</td>
+        <td class="team-name">${t.name}</td>
+        <td>${fmtPct(t.marketProb)}</td>
+        <td>${fmtPct(t.simProb)}</td>
+        <td>${fmtDelta(t.delta)}</td>
+        <td style="text-align:left">${edgeBar(t.delta)}</td>
+    </tr>`).join('');
+
+    // --- Group winner comparison ---
+    const grid = document.getElementById('marketGroupGrid');
+    grid.innerHTML = MARKET_GROUP_WINNERS.map(([group, marketTeams]) => {
+        const rows = marketTeams.map(([name, marketProb]) => {
+            const adv = advResults[name];
+            const simProb = adv ? adv.grp1st : 0;
+            const delta = simProb - marketProb;
+            const cls = delta > 0.02 ? 'delta-pos' : delta < -0.02 ? 'delta-neg' : 'delta-neutral';
+            return `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.8rem;border-bottom:1px solid #0f1923;">
+                <span style="flex:1">${name}</span>
+                <span style="width:50px;text-align:right;color:#64748b">${(marketProb*100).toFixed(1)}%</span>
+                <span style="width:50px;text-align:right">${(simProb*100).toFixed(1)}%</span>
+                <span class="${cls}" style="width:55px;text-align:right">${delta>0?'+':''}${(delta*100).toFixed(1)}%</span>
+            </div>`;
+        }).join('');
+
+        return `<div class="group-card">
+            <h3>Group ${group}</h3>
+            <div style="display:flex;justify-content:space-between;padding:0 0 4px;font-size:0.65rem;color:#475569;border-bottom:1px solid #334155;margin-bottom:4px;">
+                <span style="flex:1">Team</span>
+                <span style="width:50px;text-align:right">FD</span>
+                <span style="width:50px;text-align:right">Sim</span>
+                <span style="width:55px;text-align:right">Delta</span>
+            </div>
+            ${rows}
+        </div>`;
+    }).join('');
 }
 
 // ====== ELO EDITOR ======
