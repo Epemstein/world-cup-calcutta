@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta — v5</title>
+    <title>WC Calcutta — v6</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -187,11 +187,13 @@
             font-size: 0.8rem;
         }
         .team-row .eff-elo {
-            color: #34d399;
             font-weight: 600;
             width: 40px;
             text-align: center;
         }
+        .team-row .eff-elo.neutral { color: #e0e0e0; }
+        .team-row .eff-elo.boosted { color: #34d399; }
+        .team-row .eff-elo.nerfed { color: #ef4444; }
         .elo-legend {
             display: flex;
             gap: 16px;
@@ -970,7 +972,7 @@ function renderEloEditor() {
                         <input class="adj-input" type="number" value="${t.adj}" step="10"
                             onchange="updateAdj('${g}','${t.name}',this.value)"
                             oninput="updateAdjPreview(this,'${g}','${t.name}')">
-                        <span class="eff-elo" id="eff_${g}_${t.name.replace(/[^a-zA-Z]/g,'_')}">${effElo(t)}</span>
+                        <span class="eff-elo ${t.adj > 0 ? 'boosted' : t.adj < 0 ? 'nerfed' : 'neutral'}" id="eff_${g}_${t.name.replace(/[^a-zA-Z]/g,'_')}">${effElo(t)}</span>
                     </div>
                 </div>
             `).join('')}
@@ -978,12 +980,19 @@ function renderEloEditor() {
     `).join('');
 }
 
+function updateEffDisplay(team, group, name) {
+    const effSpan = document.getElementById('eff_' + group + '_' + name.replace(/[^a-zA-Z]/g,'_'));
+    if (effSpan) {
+        effSpan.textContent = effElo(team);
+        effSpan.className = 'eff-elo ' + (team.adj > 0 ? 'boosted' : team.adj < 0 ? 'nerfed' : 'neutral');
+    }
+}
+
 function updateAdj(group, name, val) {
     const team = GROUPS[group].find(t => t.name === name);
     if (team) {
         team.adj = parseInt(val) || 0;
-        const effSpan = document.getElementById('eff_' + group + '_' + name.replace(/[^a-zA-Z]/g,'_'));
-        if (effSpan) effSpan.textContent = effElo(team);
+        updateEffDisplay(team, group, name);
     }
 }
 
@@ -991,8 +1000,7 @@ function updateAdjPreview(input, group, name) {
     const team = GROUPS[group].find(t => t.name === name);
     if (team) {
         team.adj = parseInt(input.value) || 0;
-        const effSpan = document.getElementById('eff_' + group + '_' + name.replace(/[^a-zA-Z]/g,'_'));
-        if (effSpan) effSpan.textContent = effElo(team);
+        updateEffDisplay(team, group, name);
     }
     renderMatchups();
 }
