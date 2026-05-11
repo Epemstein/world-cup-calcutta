@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v10</title>
+    <title>WC Calcutta v11</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -48,11 +48,70 @@
         header button:hover, .tab-btn:hover { background: #1d4ed8; }
         header button:disabled { background: #555; cursor: not-allowed; }
 
+        .app-layout {
+            display: flex;
+            height: calc(100vh - 70px);
+        }
+        .sidebar {
+            width: 280px;
+            min-width: 280px;
+            background: #141e2b;
+            border-right: 1px solid #1e293b;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 12px 14px 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #1e293b;
+            flex-shrink: 0;
+        }
+        .sidebar-header h2 { font-size: 0.95rem; color: #94a3b8; }
+        .sidebar-header button {
+            padding: 4px 8px;
+            font-size: 0.7rem;
+            background: #475569;
+            color: #e0e0e0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .sidebar-legend {
+            display: flex;
+            gap: 10px;
+            padding: 6px 14px;
+            font-size: 0.68rem;
+            color: #475569;
+            border-bottom: 1px solid #1e293b;
+            flex-shrink: 0;
+        }
+        .sidebar-legend span { display: flex; align-items: center; gap: 3px; }
+        .sidebar-legend .dot {
+            width: 6px; height: 6px; border-radius: 50%; display: inline-block;
+        }
+        .sidebar-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 10px;
+        }
+        .sidebar-scroll .group-card {
+            margin-bottom: 8px;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
         .tabs {
             display: flex;
             gap: 4px;
-            padding: 12px 30px 0;
+            padding: 12px 20px 0;
             background: #0f1923;
+            flex-shrink: 0;
         }
         .tab-btn {
             background: #1a2a3a;
@@ -66,7 +125,11 @@
             color: #60a5fa;
         }
 
-        .tab-content { display: none; padding: 20px 30px; }
+        .tab-panels {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .tab-content { display: none; padding: 20px; }
         .tab-content.active { display: block; }
 
         /* Stage Tab */
@@ -140,23 +203,23 @@
         .pts-knockout { color: #f472b6; }
         .pts-bonus { color: #fbbf24; }
 
-        /* ELO editor tab */
+        /* ELO editor sidebar */
         .elo-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
         .group-card {
             background: #1e293b;
-            border-radius: 8px;
-            padding: 14px;
+            border-radius: 6px;
+            padding: 10px 12px;
         }
         .group-card h3 {
-            font-size: 0.95rem;
+            font-size: 0.85rem;
             color: #60a5fa;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             border-bottom: 1px solid #334155;
-            padding-bottom: 6px;
+            padding-bottom: 4px;
         }
         .team-row {
             display: flex;
@@ -165,47 +228,36 @@
             padding: 4px 0;
             gap: 6px;
         }
-        .team-row .team-label { font-size: 0.85rem; flex: 1; }
+        .team-row .team-label { font-size: 0.78rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .team-row .elo-fields {
             display: flex;
             align-items: center;
-            gap: 4px;
-            font-size: 0.8rem;
+            gap: 3px;
+            font-size: 0.73rem;
         }
         .team-row .base-elo {
             color: #64748b;
-            width: 40px;
+            width: 34px;
             text-align: center;
         }
         .team-row .adj-input {
-            width: 55px;
-            padding: 3px 4px;
+            width: 46px;
+            padding: 2px 3px;
             background: #0f1923;
             border: 1px solid #334155;
             color: #facc15;
-            border-radius: 4px;
+            border-radius: 3px;
             text-align: center;
-            font-size: 0.8rem;
+            font-size: 0.73rem;
         }
         .team-row .eff-elo {
             font-weight: 600;
-            width: 40px;
+            width: 34px;
             text-align: center;
         }
         .team-row .eff-elo.neutral { color: #e0e0e0; }
         .team-row .eff-elo.boosted { color: #34d399; }
         .team-row .eff-elo.nerfed { color: #ef4444; }
-        .elo-legend {
-            display: flex;
-            gap: 16px;
-            margin-bottom: 12px;
-            font-size: 0.78rem;
-            color: #64748b;
-        }
-        .elo-legend span { display: flex; align-items: center; gap: 4px; }
-        .elo-legend .dot {
-            width: 8px; height: 8px; border-radius: 50%; display: inline-block;
-        }
 
         /* Matchups tab */
         .matchups-container {
@@ -298,8 +350,9 @@
             height: 4px;
             background: #1e293b;
             border-radius: 2px;
-            margin: 10px 30px;
+            margin: 6px 20px;
             display: none;
+            flex-shrink: 0;
         }
         .progress-bar.active { display: block; }
         .progress-fill {
@@ -315,10 +368,15 @@
             color: #64748b;
             font-size: 0.8rem;
             padding: 4px;
+            flex-shrink: 0;
         }
 
         /* Responsive */
-        @media (max-width: 768px) {
+        @media (max-width: 900px) {
+            .app-layout { flex-direction: column; height: auto; }
+            .sidebar { width: 100%; min-width: auto; max-height: 300px; border-right: none; border-bottom: 1px solid #1e293b; }
+            .main-content { height: auto; }
+            .tab-panels { overflow-y: visible; }
             header { flex-direction: column; gap: 10px; }
             table { font-size: 0.72rem; }
             th, td { padding: 4px 3px; }
@@ -336,15 +394,37 @@
     </div>
 </header>
 
+<div class="app-layout">
+
+<!-- SIDEBAR: Team Ratings -->
+<div class="sidebar">
+    <div class="sidebar-header">
+        <h2>Team Ratings</h2>
+        <button onclick="resetElo()">Reset</button>
+    </div>
+    <div class="sidebar-legend">
+        <span><span class="dot" style="background:#64748b"></span> Base</span>
+        <span><span class="dot" style="background:#facc15"></span> +/-</span>
+        <span><span class="dot" style="background:#34d399"></span> Eff</span>
+    </div>
+    <div class="sidebar-scroll">
+        <div class="elo-grid" id="eloGrid"></div>
+    </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+
 <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('stage')">Stage</button>
     <button class="tab-btn" onclick="switchTab('breakdown')">Points Breakdown</button>
     <button class="tab-btn" onclick="switchTab('matchups')">Matchups</button>
-    <button class="tab-btn" onclick="switchTab('elo')">Team Ratings</button>
 </div>
 
 <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
 <div class="status-text" id="statusText">Click "Run Simulation" to generate projections</div>
+
+<div class="tab-panels">
 
 <!-- STAGE TAB -->
 <div class="tab-content active" id="tab-stage">
@@ -428,19 +508,9 @@
     </div>
 </div>
 
-<!-- ELO TAB -->
-<div class="tab-content" id="tab-elo">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <h2 style="font-size:1.2rem;">Adjust Team Ratings (ELO)</h2>
-        <button onclick="resetElo()" style="background:#475569;padding:6px 12px;">Reset Adjustments</button>
-    </div>
-    <div class="elo-legend">
-        <span><span class="dot" style="background:#64748b"></span> Base ELO</span>
-        <span><span class="dot" style="background:#facc15"></span> +/- Adjustment</span>
-        <span><span class="dot" style="background:#34d399"></span> Effective ELO</span>
-    </div>
-    <div class="elo-grid" id="eloGrid"></div>
-</div>
+</div><!-- /tab-panels -->
+</div><!-- /main-content -->
+</div><!-- /app-layout -->
 
 <script>
 // ====== DATA ======
@@ -1071,14 +1141,6 @@ function renderEloEditor() {
     grid.innerHTML = Object.entries(GROUPS).map(([g, teams]) => `
         <div class="group-card">
             <h3>Group ${g}</h3>
-            <div style="display:flex;justify-content:space-between;padding:0 0 4px;font-size:0.7rem;color:#475569;border-bottom:1px solid #0f1923;margin-bottom:4px;">
-                <span>Team</span>
-                <span style="display:flex;gap:8px;">
-                    <span style="width:40px;text-align:center">Base</span>
-                    <span style="width:55px;text-align:center">+/-</span>
-                    <span style="width:40px;text-align:center">Eff</span>
-                </span>
-            </div>
             ${teams.map(t => `
                 <div class="team-row">
                     <span class="team-label">${t.name} <small style="color:#64748b">P${t.pot}</small></span>
