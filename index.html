@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v32</title>
+    <title>WC Calcutta v33</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -184,7 +184,8 @@
             border-bottom: 1px solid #1e293b;
         }
         tr:hover { background: #1e293b; }
-        td.team-name { text-align: left; font-weight: 600; white-space: nowrap; }
+        td.team-name { text-align: left; font-weight: 600; white-space: nowrap; cursor: pointer; }
+        td.team-name:hover { color: #60a5fa; }
         td.group-cell { color: #94a3b8; }
         td.pot-cell { color: #94a3b8; font-size: 0.75rem; }
         td.elo-cell { color: #facc15; }
@@ -1224,7 +1225,7 @@ function renderStageTable(data) {
         }
         return `<tr style="${isDrafted ? 'opacity:0.6' : ''}">
             <td>${i + 1}</td>
-            <td class="team-name">${flag(t.name)} ${t.name}</td>
+            <td class="team-name">${teamLink(t.name)}</td>
             <td style="color:#94a3b8">${(pct * 100).toFixed(1)}%</td>
             <td class="price-cell">$${fairValue.toFixed(0)}</td>
             <td><input type="number" value="${auctionVal}" min="0" step="1"
@@ -1266,7 +1267,7 @@ function renderBreakdownTable(data) {
     const tbody = document.getElementById('breakdownBody');
     tbody.innerHTML = sorted.map((t, i) => `<tr>
         <td>${i + 1}</td>
-        <td class="team-name">${flag(t.name)} ${t.name}</td>
+        <td class="team-name">${teamLink(t.name)}</td>
         <td class="group-cell">${t.group}</td>
         <td class="pts-pool">${t.poolWinPts.toFixed(1)}</td>
         <td class="pts-pool">${t.poolDrawPts.toFixed(1)}</td>
@@ -1319,13 +1320,13 @@ function renderMatchups() {
                 const dPct = (m.draw * 100).toFixed(0);
                 const lPct = (m.winB * 100).toFixed(0);
                 return `<div class="matchup">
-                    <span class="team-a">${flag(m.a)} ${m.a}</span>
+                    <span class="team-a" onclick="selectTeam('${m.a.replace(/'/g, "\\'")}')" style="cursor:pointer">${flag(m.a)} ${m.a}</span>
                     <div class="prob-bar-container">
                         <div class="prob-w" style="width:${wPct}%">${wPct > 8 ? wPct + '%' : ''}</div>
                         <div class="prob-d" style="width:${dPct}%">${dPct > 8 ? dPct + '%' : ''}</div>
                         <div class="prob-l" style="width:${lPct}%">${lPct > 8 ? lPct + '%' : ''}</div>
                     </div>
-                    <span class="team-b">${m.b} ${flag(m.b)}</span>
+                    <span class="team-b" onclick="selectTeam('${m.b.replace(/'/g, "\\'")}')" style="cursor:pointer">${m.b} ${flag(m.b)}</span>
                 </div>`;
             }).join('')}
         </div>`;
@@ -1350,7 +1351,7 @@ function renderAdvancement() {
     };
 
     tbody.innerHTML = data.map(t => `<tr>
-        <td class="team-name">${flag(t.name)} ${t.name}</td>
+        <td class="team-name">${teamLink(t.name)}</td>
         <td class="group-cell">${t.group}</td>
         <td><span style="color:#34d399">${fmtPct(t.grp1st)}</span></td>
         <td><span style="color:#60a5fa">${fmtPct(t.grp2nd)}</span></td>
@@ -1420,7 +1421,7 @@ function renderMarketComparison() {
 
     tbody.innerHTML = winnerData.map((t, i) => `<tr>
         <td>${i + 1}</td>
-        <td class="team-name">${flag(t.name)} ${t.name}</td>
+        <td class="team-name">${teamLink(t.name)}</td>
         <td class="group-cell">${t.group}</td>
         <td>${fmtPct(t.grpMarket)}</td>
         <td>${fmtPct(t.grpSim)}</td>
@@ -1440,7 +1441,7 @@ function renderMarketComparison() {
             const delta = simProb - marketProb;
             const cls = delta > 0.02 ? 'delta-pos' : delta < -0.02 ? 'delta-neg' : 'delta-neutral';
             return `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.8rem;border-bottom:1px solid #0f1923;">
-                <span style="flex:1">${name}</span>
+                <span style="flex:1;cursor:pointer" onclick="selectTeam('${name.replace(/'/g, "\\'")}')">${flag(name)} ${name}</span>
                 <span style="width:50px;text-align:right;color:#64748b">${(marketProb*100).toFixed(1)}%</span>
                 <span style="width:50px;text-align:right">${(simProb*100).toFixed(1)}%</span>
                 <span class="${cls}" style="width:55px;text-align:right">${delta>0?'+':''}${(delta*100).toFixed(1)}%</span>
@@ -1466,6 +1467,30 @@ function renderMarketComparison() {
             th.classList.add(marketSortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
         }
     });
+}
+
+// ====== TEAM SELECTION ======
+function selectTeam(name) {
+    // Switch to matchups tab
+    switchTabDirect('matchups');
+    // Switch to single team mode
+    setMatchMode('single');
+    // Set team name and render
+    document.getElementById('singleTeamInput').value = name;
+    renderSingleTeam();
+}
+
+function switchTabDirect(id) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('active');
+        if (el.textContent === 'Matchups') el.classList.add('active');
+    });
+    document.getElementById('tab-' + id).classList.add('active');
+}
+
+function teamLink(name) {
+    return `${flag(name)} <span onclick="selectTeam('${name.replace(/'/g, "\\'")}')" style="cursor:pointer">${name}</span>`;
 }
 
 // ====== SINGLE TEAM VIEW ======
@@ -1588,7 +1613,7 @@ function renderSingleTeam() {
         const dBar = (t.draw * 100).toFixed(0);
         const lBar = (t.winB * 100).toFixed(0);
         html += `<tr>
-            <td class="team-name">${flag(t.name)} ${t.name}</td>
+            <td class="team-name">${teamLink(t.name)}</td>
             <td class="group-cell">${t.group}</td>
             <td class="elo-cell">${t.oppElo}</td>
             <td style="color:#22c55e">${wPct}%</td>
