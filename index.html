@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v22</title>
+    <title>WC Calcutta v23</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1425,6 +1425,7 @@ function updateAdjPreview(input, group, name) {
 }
 
 function resetElo() {
+    if (!confirm('Reset all ELO adjustments and auction prices across all connected browsers?')) return;
     for (const [g, teams] of Object.entries(GROUPS)) {
         for (let i = 0; i < teams.length; i++) {
             teams[i].adj = 0;
@@ -1432,8 +1433,18 @@ function resetElo() {
     }
     DRAW_BASE = DEFAULT_DRAW_BASE;
     DRAW_DECAY = DEFAULT_DRAW_DECAY;
+    // Clear local auction prices
+    for (const key of Object.keys(auctionPrices)) delete auctionPrices[key];
+    // Push reset to Firebase
+    if (typeof db !== 'undefined') {
+        eloRef.set(null);
+        auctionRef.set(null);
+        potRef.set(1000);
+    }
+    document.getElementById('potSize').value = 1000;
     renderEloEditor();
     renderMatchups();
+    updateStageValues();
 }
 
 // ====== KALSHI MARKET CALIBRATION ======
