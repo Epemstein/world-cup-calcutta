@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta — v4</title>
+    <title>WC Calcutta — v5</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -162,17 +162,46 @@
             justify-content: space-between;
             align-items: center;
             padding: 4px 0;
+            gap: 6px;
         }
-        .team-row span { font-size: 0.85rem; }
-        .team-row input {
-            width: 65px;
-            padding: 3px 6px;
+        .team-row .team-label { font-size: 0.85rem; flex: 1; }
+        .team-row .elo-fields {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8rem;
+        }
+        .team-row .base-elo {
+            color: #64748b;
+            width: 40px;
+            text-align: center;
+        }
+        .team-row .adj-input {
+            width: 55px;
+            padding: 3px 4px;
             background: #0f1923;
             border: 1px solid #334155;
             color: #facc15;
             border-radius: 4px;
             text-align: center;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
+        }
+        .team-row .eff-elo {
+            color: #34d399;
+            font-weight: 600;
+            width: 40px;
+            text-align: center;
+        }
+        .elo-legend {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+            font-size: 0.78rem;
+            color: #64748b;
+        }
+        .elo-legend span { display: flex; align-items: center; gap: 4px; }
+        .elo-legend .dot {
+            width: 8px; height: 8px; border-radius: 50%; display: inline-block;
         }
 
         /* Matchups tab */
@@ -394,9 +423,14 @@
 
 <!-- ELO TAB -->
 <div class="tab-content" id="tab-elo">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <h2 style="font-size:1.2rem;">Adjust Team Ratings (ELO)</h2>
-        <button onclick="resetElo()" style="background:#475569;padding:6px 12px;">Reset to Defaults</button>
+        <button onclick="resetElo()" style="background:#475569;padding:6px 12px;">Reset Adjustments</button>
+    </div>
+    <div class="elo-legend">
+        <span><span class="dot" style="background:#64748b"></span> Base ELO</span>
+        <span><span class="dot" style="background:#facc15"></span> +/- Adjustment</span>
+        <span><span class="dot" style="background:#34d399"></span> Effective ELO</span>
     </div>
     <div class="elo-grid" id="eloGrid"></div>
 </div>
@@ -405,78 +439,80 @@
 // ====== DATA ======
 const GROUPS = {
     A: [
-        { name: "Mexico", pot: 1, elo: 1809 },
-        { name: "South Korea", pot: 2, elo: 1778 },
-        { name: "South Africa", pot: 3, elo: 1597 },
-        { name: "Czech Republic", pot: 4, elo: 1720 },
+        { name: "Mexico", pot: 1, elo: 1809, adj: 0 },
+        { name: "South Korea", pot: 2, elo: 1778, adj: 0 },
+        { name: "South Africa", pot: 3, elo: 1597, adj: 0 },
+        { name: "Czech Republic", pot: 4, elo: 1720, adj: 0 },
     ],
     B: [
-        { name: "Canada", pot: 1, elo: 1729 },
-        { name: "Qatar", pot: 2, elo: 1531 },
-        { name: "Switzerland", pot: 2, elo: 1800 },
-        { name: "Bosnia & Herzegovina", pot: 4, elo: 1660 },
+        { name: "Canada", pot: 1, elo: 1729, adj: 0 },
+        { name: "Qatar", pot: 2, elo: 1531, adj: 0 },
+        { name: "Switzerland", pot: 2, elo: 1800, adj: 0 },
+        { name: "Bosnia & Herzegovina", pot: 4, elo: 1660, adj: 0 },
     ],
     C: [
-        { name: "Brazil", pot: 1, elo: 1944 },
-        { name: "Morocco", pot: 2, elo: 1851 },
-        { name: "Scotland", pot: 3, elo: 1698 },
-        { name: "Haiti", pot: 4, elo: 1384 },
+        { name: "Brazil", pot: 1, elo: 1944, adj: 0 },
+        { name: "Morocco", pot: 2, elo: 1851, adj: 0 },
+        { name: "Scotland", pot: 3, elo: 1698, adj: 0 },
+        { name: "Haiti", pot: 4, elo: 1384, adj: 0 },
     ],
     D: [
-        { name: "United States", pot: 1, elo: 1815 },
-        { name: "Australia", pot: 2, elo: 1714 },
-        { name: "Paraguay", pot: 3, elo: 1697 },
-        { name: "Turkey", pot: 4, elo: 1780 },
+        { name: "United States", pot: 1, elo: 1815, adj: 0 },
+        { name: "Australia", pot: 2, elo: 1714, adj: 0 },
+        { name: "Paraguay", pot: 3, elo: 1697, adj: 0 },
+        { name: "Turkey", pot: 4, elo: 1780, adj: 0 },
     ],
     E: [
-        { name: "Germany", pot: 1, elo: 1922 },
-        { name: "Ecuador", pot: 2, elo: 1787 },
-        { name: "Ivory Coast", pot: 3, elo: 1680 },
-        { name: "Curaçao", pot: 4, elo: 1400 },
+        { name: "Germany", pot: 1, elo: 1922, adj: 0 },
+        { name: "Ecuador", pot: 2, elo: 1787, adj: 0 },
+        { name: "Ivory Coast", pot: 3, elo: 1680, adj: 0 },
+        { name: "Curaçao", pot: 4, elo: 1400, adj: 0 },
     ],
     F: [
-        { name: "Netherlands", pot: 1, elo: 1915 },
-        { name: "Japan", pot: 2, elo: 1860 },
-        { name: "Tunisia", pot: 3, elo: 1660 },
-        { name: "Sweden", pot: 4, elo: 1720 },
+        { name: "Netherlands", pot: 1, elo: 1915, adj: 0 },
+        { name: "Japan", pot: 2, elo: 1860, adj: 0 },
+        { name: "Tunisia", pot: 3, elo: 1660, adj: 0 },
+        { name: "Sweden", pot: 4, elo: 1720, adj: 0 },
     ],
     G: [
-        { name: "Belgium", pot: 1, elo: 1843 },
-        { name: "Iran", pot: 2, elo: 1735 },
-        { name: "Egypt", pot: 3, elo: 1636 },
-        { name: "New Zealand", pot: 4, elo: 1490 },
+        { name: "Belgium", pot: 1, elo: 1843, adj: 0 },
+        { name: "Iran", pot: 2, elo: 1735, adj: 0 },
+        { name: "Egypt", pot: 3, elo: 1636, adj: 0 },
+        { name: "New Zealand", pot: 4, elo: 1490, adj: 0 },
     ],
     H: [
-        { name: "Spain", pot: 1, elo: 2001 },
-        { name: "Uruguay", pot: 2, elo: 1850 },
-        { name: "Saudi Arabia", pot: 3, elo: 1580 },
-        { name: "Cape Verde", pot: 4, elo: 1450 },
+        { name: "Spain", pot: 1, elo: 2001, adj: 0 },
+        { name: "Uruguay", pot: 2, elo: 1850, adj: 0 },
+        { name: "Saudi Arabia", pot: 3, elo: 1580, adj: 0 },
+        { name: "Cape Verde", pot: 4, elo: 1450, adj: 0 },
     ],
     I: [
-        { name: "France", pot: 1, elo: 1984 },
-        { name: "Senegal", pot: 2, elo: 1726 },
-        { name: "Norway", pot: 3, elo: 1740 },
-        { name: "Iraq", pot: 4, elo: 1530 },
+        { name: "France", pot: 1, elo: 1984, adj: 0 },
+        { name: "Senegal", pot: 2, elo: 1726, adj: 0 },
+        { name: "Norway", pot: 3, elo: 1740, adj: 0 },
+        { name: "Iraq", pot: 4, elo: 1530, adj: 0 },
     ],
     J: [
-        { name: "Argentina", pot: 1, elo: 2060 },
-        { name: "Austria", pot: 2, elo: 1748 },
-        { name: "Algeria", pot: 3, elo: 1630 },
-        { name: "Jordan", pot: 4, elo: 1520 },
+        { name: "Argentina", pot: 1, elo: 2060, adj: 0 },
+        { name: "Austria", pot: 2, elo: 1748, adj: 0 },
+        { name: "Algeria", pot: 3, elo: 1630, adj: 0 },
+        { name: "Jordan", pot: 4, elo: 1520, adj: 0 },
     ],
     K: [
-        { name: "Portugal", pot: 1, elo: 1964 },
-        { name: "Colombia", pot: 2, elo: 1845 },
-        { name: "Uzbekistan", pot: 3, elo: 1610 },
-        { name: "DR Congo", pot: 4, elo: 1540 },
+        { name: "Portugal", pot: 1, elo: 1964, adj: 0 },
+        { name: "Colombia", pot: 2, elo: 1845, adj: 0 },
+        { name: "Uzbekistan", pot: 3, elo: 1610, adj: 0 },
+        { name: "DR Congo", pot: 4, elo: 1540, adj: 0 },
     ],
     L: [
-        { name: "England", pot: 1, elo: 1920 },
-        { name: "Croatia", pot: 2, elo: 1810 },
-        { name: "Panama", pot: 3, elo: 1600 },
-        { name: "Ghana", pot: 4, elo: 1510 },
+        { name: "England", pot: 1, elo: 1920, adj: 0 },
+        { name: "Croatia", pot: 2, elo: 1810, adj: 0 },
+        { name: "Panama", pot: 3, elo: 1600, adj: 0 },
+        { name: "Ghana", pot: 4, elo: 1510, adj: 0 },
     ],
 };
+
+function effElo(team) { return team.elo + team.adj; }
 
 // Deep copy for reset
 const DEFAULT_GROUPS = JSON.parse(JSON.stringify(GROUPS));
@@ -539,7 +575,7 @@ function runOneSim() {
     for (const [g, teams] of Object.entries(GROUPS)) {
         for (const t of teams) {
             teamStats[t.name] = {
-                group: g, pot: t.pot, elo: t.elo,
+                group: g, pot: t.pot, elo: effElo(t),
                 poolWinPts: 0, poolDrawPts: 0,
                 advanceBonus: 0, groupWinBonus: 0,
                 r32Pts: 0, r16Pts: 0, qfPts: 0, sfPts: 0, finalPts: 0,
@@ -552,7 +588,7 @@ function runOneSim() {
     // --- Pool Play ---
     const groupWinners = {}; // group -> [1st, 2nd, 3rd]
     for (const [g, teams] of Object.entries(GROUPS)) {
-        const standings = teams.map(t => ({ name: t.name, elo: t.elo, pts: 0 }));
+        const standings = teams.map(t => ({ name: t.name, elo: effElo(t), pts: 0 }));
         // Round robin
         for (let i = 0; i < standings.length; i++) {
             for (let j = i + 1; j < standings.length; j++) {
@@ -669,7 +705,7 @@ function runSimulation() {
     for (const [g, teams] of Object.entries(GROUPS)) {
         for (const t of teams) {
             accum[t.name] = {
-                group: g, pot: t.pot, elo: t.elo,
+                group: g, pot: t.pot, elo: effElo(t),
                 poolWinPts: 0, poolDrawPts: 0,
                 advanceBonus: 0, groupWinBonus: 0,
                 r32Pts: 0, r16Pts: 0, qfPts: 0, sfPts: 0, finalPts: 0,
@@ -863,7 +899,7 @@ function renderMatchups() {
         const matches = [];
         for (let i = 0; i < teams.length; i++) {
             for (let j = i + 1; j < teams.length; j++) {
-                const p = computeMatchProbs(teams[i].elo, teams[j].elo);
+                const p = computeMatchProbs(effElo(teams[i]), effElo(teams[j]));
                 matches.push({ a: teams[i].name, b: teams[j].name, ...p });
             }
         }
@@ -918,29 +954,57 @@ function renderEloEditor() {
     grid.innerHTML = Object.entries(GROUPS).map(([g, teams]) => `
         <div class="group-card">
             <h3>Group ${g}</h3>
+            <div style="display:flex;justify-content:space-between;padding:0 0 4px;font-size:0.7rem;color:#475569;border-bottom:1px solid #0f1923;margin-bottom:4px;">
+                <span>Team</span>
+                <span style="display:flex;gap:8px;">
+                    <span style="width:40px;text-align:center">Base</span>
+                    <span style="width:55px;text-align:center">+/-</span>
+                    <span style="width:40px;text-align:center">Eff</span>
+                </span>
+            </div>
             ${teams.map(t => `
                 <div class="team-row">
-                    <span>${t.name} <small style="color:#64748b">P${t.pot}</small></span>
-                    <input type="number" value="${t.elo}" min="1000" max="2200"
-                        onchange="updateElo('${g}','${t.name}',this.value)">
+                    <span class="team-label">${t.name} <small style="color:#64748b">P${t.pot}</small></span>
+                    <div class="elo-fields">
+                        <span class="base-elo">${t.elo}</span>
+                        <input class="adj-input" type="number" value="${t.adj}" step="10"
+                            onchange="updateAdj('${g}','${t.name}',this.value)"
+                            oninput="updateAdjPreview(this,'${g}','${t.name}')">
+                        <span class="eff-elo" id="eff_${g}_${t.name.replace(/[^a-zA-Z]/g,'_')}">${effElo(t)}</span>
+                    </div>
                 </div>
             `).join('')}
         </div>
     `).join('');
 }
 
-function updateElo(group, name, val) {
+function updateAdj(group, name, val) {
     const team = GROUPS[group].find(t => t.name === name);
-    if (team) team.elo = parseInt(val) || team.elo;
+    if (team) {
+        team.adj = parseInt(val) || 0;
+        const effSpan = document.getElementById('eff_' + group + '_' + name.replace(/[^a-zA-Z]/g,'_'));
+        if (effSpan) effSpan.textContent = effElo(team);
+    }
+}
+
+function updateAdjPreview(input, group, name) {
+    const team = GROUPS[group].find(t => t.name === name);
+    if (team) {
+        team.adj = parseInt(input.value) || 0;
+        const effSpan = document.getElementById('eff_' + group + '_' + name.replace(/[^a-zA-Z]/g,'_'));
+        if (effSpan) effSpan.textContent = effElo(team);
+    }
+    renderMatchups();
 }
 
 function resetElo() {
-    for (const [g, teams] of Object.entries(DEFAULT_GROUPS)) {
+    for (const [g, teams] of Object.entries(GROUPS)) {
         for (let i = 0; i < teams.length; i++) {
-            GROUPS[g][i].elo = teams[i].elo;
+            teams[i].adj = 0;
         }
     }
     renderEloEditor();
+    renderMatchups();
 }
 
 // ====== TABS ======
