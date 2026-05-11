@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v13</title>
+    <title>WC Calcutta v14</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1199,8 +1199,9 @@ function resetElo() {
 
 // ====== KALSHI MARKET CALIBRATION ======
 // Kalshi match odds [teamA, teamB, pA_win, pB_win, pDraw]
+// Only using Matchday 1 — high volume, reliable odds
+// Matchday 2/3 markets have <$1k volume with unreliable draw pricing
 const KALSHI_MATCHES = [
-    // Matchday 1
     ["Mexico", "South Africa", 0.64, 0.11, 0.22],
     ["United States", "Paraguay", 0.48, 0.27, 0.24],
     ["Qatar", "Switzerland", 0.10, 0.73, 0.14],
@@ -1219,44 +1220,6 @@ const KALSHI_MATCHES = [
     ["England", "Croatia", 0.58, 0.22, 0.27],
     ["Ghana", "Panama", 0.49, 0.28, 0.26],
     ["Uzbekistan", "Colombia", 0.15, 0.76, 0.20],
-    // Matchday 2
-    ["Canada", "Qatar", 0.68, 0.29, 0.36],
-    ["Mexico", "South Korea", 0.54, 0.27, 0.30],
-    ["United States", "Australia", 0.55, 0.39, 0.13],
-    ["Scotland", "Morocco", 0.58, 0.67, 0.31],
-    ["Brazil", "Haiti", 0.95, 0.05, 0.03],
-    ["Germany", "Ivory Coast", 0.75, 0.35, 0.20],
-    ["Ecuador", "Curaçao", 0.76, 0.06, 0.05],
-    ["Tunisia", "Japan", 0.26, 0.59, 0.50],
-    ["Spain", "Saudi Arabia", 0.84, 0.06, 0.08],
-    ["Belgium", "Iran", 0.79, 0.45, 0.50],
-    ["Uruguay", "Cape Verde", 0.72, 0.30, 0.49],
-    ["New Zealand", "Egypt", 0.28, 0.44, 0.40],
-    ["Argentina", "Austria", 0.52, 0.26, 0.58],
-    ["Norway", "Senegal", 0.50, 0.37, 0.61],
-    ["Jordan", "Algeria", 0.48, 0.64, 0.26],
-    ["Portugal", "Uzbekistan", 0.79, 0.08, 0.23],
-    ["England", "Ghana", 0.76, 0.12, 0.30],
-    ["Panama", "Croatia", 0.45, 0.35, 0.23],
-    // Matchday 3
-    ["Switzerland", "Canada", 0.69, 0.59, 0.48],
-    ["Morocco", "Haiti", 0.75, 0.47, 0.28],
-    ["Scotland", "Brazil", 0.39, 0.48, 0.40],
-    ["South Africa", "South Korea", 0.15, 0.65, 0.49],
-    ["Curaçao", "Ivory Coast", 0.30, 0.15, 0.10],
-    ["Ecuador", "Germany", 0.20, 0.64, 0.45],
-    ["Tunisia", "Netherlands", 0.47, 0.78, 0.19],
-    ["Paraguay", "Australia", 0.75, 0.57, 0.31],
-    ["Norway", "France", 0.16, 0.58, 0.16],
-    ["Cape Verde", "Saudi Arabia", 0.78, 0.50, 0.34],
-    ["Uruguay", "Spain", 0.45, 0.50, 0.45],
-    ["Egypt", "Iran", 0.60, 0.30, 0.46],
-    ["New Zealand", "Belgium", 0.05, 0.77, 0.24],
-    ["Croatia", "Ghana", 0.25, 0.49, 0.09],
-    ["Panama", "England", 0.04, 0.81, 0.08],
-    ["Colombia", "Portugal", 0.52, 0.39, 0.14],
-    ["Algeria", "Austria", 0.55, 0.25, 0.05],
-    ["Jordan", "Argentina", 0.05, 0.73, 0.37],
 ];
 
 function calibrateToMarket() {
