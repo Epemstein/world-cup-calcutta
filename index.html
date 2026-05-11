@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v31</title>
+    <title>WC Calcutta v32</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -516,31 +516,50 @@
 
 <!-- MATCHUPS TAB -->
 <div class="tab-content" id="tab-matchups">
-    <h2 style="margin-bottom:16px; font-size:1.2rem;">Group Stage Matchups</h2>
-    <div class="matchups-container" id="matchupsGrid"></div>
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;">
+        <button class="tab-btn active" id="matchToggleAll" onclick="setMatchMode('all')" style="padding:6px 14px;font-size:0.8rem;">All Teams</button>
+        <button class="tab-btn" id="matchToggleSingle" onclick="setMatchMode('single')" style="padding:6px 14px;font-size:0.8rem;">Single Team</button>
+        <div id="singleTeamPicker" style="display:none;">
+            <input type="text" id="singleTeamInput" placeholder="Type team name..."
+                list="teamList" oninput="renderSingleTeam()"
+                style="padding:6px 10px;background:#1a2a3a;border:1px solid #3a4a5a;color:#fff;border-radius:4px;font-size:0.85rem;width:200px;">
+            <datalist id="teamList"></datalist>
+        </div>
+    </div>
 
-    <div class="advancement-section">
-        <h2>Knockout Round Advancement Probability</h2>
-        <p style="color:#64748b;font-size:0.8rem;margin-bottom:12px;">Run simulation to populate advancement probabilities.</p>
-        <table class="adv-table" id="advTable">
-            <thead>
-                <tr>
-                    <th style="text-align:left;cursor:default">Team</th>
-                    <th style="cursor:default">Grp</th>
-                    <th style="cursor:default">1st</th>
-                    <th style="cursor:default">2nd</th>
-                    <th style="cursor:default">3rd</th>
-                    <th style="cursor:default">4th</th>
-                    <th style="cursor:default">Advance</th>
-                    <th style="cursor:default">R32 <span style="color:#3b82f6">W</span> / <span style="color:#f97316">SO</span></th>
-                    <th style="cursor:default">R16 <span style="color:#6366f1">W</span> / <span style="color:#f97316">SO</span></th>
-                    <th style="cursor:default">QF <span style="color:#8b5cf6">W</span> / <span style="color:#f97316">SO</span></th>
-                    <th style="cursor:default">SF <span style="color:#a855f7">W</span> / <span style="color:#f97316">SO</span></th>
-                    <th style="cursor:default">Final <span style="color:#facc15">W</span> / <span style="color:#f97316">SO</span></th>
-                </tr>
-            </thead>
-            <tbody id="advBody"></tbody>
-        </table>
+    <!-- ALL TEAMS VIEW -->
+    <div id="matchAllView">
+        <h2 style="margin-bottom:16px; font-size:1.2rem;">Group Stage Matchups</h2>
+        <div class="matchups-container" id="matchupsGrid"></div>
+
+        <div class="advancement-section">
+            <h2>Knockout Round Advancement Probability</h2>
+            <p style="color:#64748b;font-size:0.8rem;margin-bottom:12px;">Run simulation to populate advancement probabilities.</p>
+            <table class="adv-table" id="advTable">
+                <thead>
+                    <tr>
+                        <th style="text-align:left;cursor:default">Team</th>
+                        <th style="cursor:default">Grp</th>
+                        <th style="cursor:default">1st</th>
+                        <th style="cursor:default">2nd</th>
+                        <th style="cursor:default">3rd</th>
+                        <th style="cursor:default">4th</th>
+                        <th style="cursor:default">Advance</th>
+                        <th style="cursor:default">R32 <span style="color:#3b82f6">W</span> / <span style="color:#f97316">SO</span></th>
+                        <th style="cursor:default">R16 <span style="color:#6366f1">W</span> / <span style="color:#f97316">SO</span></th>
+                        <th style="cursor:default">QF <span style="color:#8b5cf6">W</span> / <span style="color:#f97316">SO</span></th>
+                        <th style="cursor:default">SF <span style="color:#a855f7">W</span> / <span style="color:#f97316">SO</span></th>
+                        <th style="cursor:default">Final <span style="color:#facc15">W</span> / <span style="color:#f97316">SO</span></th>
+                    </tr>
+                </thead>
+                <tbody id="advBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SINGLE TEAM VIEW -->
+    <div id="matchSingleView" style="display:none;">
+        <div id="singleTeamContent"></div>
     </div>
 </div>
 
@@ -1449,6 +1468,144 @@ function renderMarketComparison() {
     });
 }
 
+// ====== SINGLE TEAM VIEW ======
+function setMatchMode(mode) {
+    document.getElementById('matchToggleAll').classList.toggle('active', mode === 'all');
+    document.getElementById('matchToggleSingle').classList.toggle('active', mode === 'single');
+    document.getElementById('matchAllView').style.display = mode === 'all' ? 'block' : 'none';
+    document.getElementById('matchSingleView').style.display = mode === 'single' ? 'block' : 'none';
+    document.getElementById('singleTeamPicker').style.display = mode === 'single' ? 'block' : 'none';
+    if (mode === 'single') {
+        document.getElementById('singleTeamInput').focus();
+        renderSingleTeam();
+    }
+}
+
+function populateTeamList() {
+    const dl = document.getElementById('teamList');
+    dl.innerHTML = '';
+    for (const [g, teams] of Object.entries(GROUPS)) {
+        for (const t of teams) {
+            const opt = document.createElement('option');
+            opt.value = t.name;
+            dl.appendChild(opt);
+        }
+    }
+}
+
+function renderSingleTeam() {
+    const input = document.getElementById('singleTeamInput').value.trim();
+    const container = document.getElementById('singleTeamContent');
+    if (!input) { container.innerHTML = '<p style="color:#64748b">Type a team name above to see matchups and probabilities.</p>'; return; }
+
+    // Find team
+    let selectedTeam = null, selectedGroup = null;
+    for (const [g, teams] of Object.entries(GROUPS)) {
+        const t = teams.find(t => t.name.toLowerCase() === input.toLowerCase());
+        if (t) { selectedTeam = t; selectedGroup = g; break; }
+    }
+    if (!selectedTeam) { container.innerHTML = '<p style="color:#64748b">Team not found.</p>'; return; }
+
+    const elo = effElo(selectedTeam);
+    let html = `<h2 style="font-size:1.3rem;margin-bottom:16px;">${flag(selectedTeam.name)} ${selectedTeam.name} <span style="color:#64748b;font-size:0.9rem;">Group ${selectedGroup} · ELO ${elo}</span></h2>`;
+
+    // --- Sim probabilities ---
+    const adv = advResults ? advResults[selectedTeam.name] : null;
+    if (adv) {
+        const fmtPct = v => (v * 100).toFixed(1) + '%';
+        html += `<div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:20px;">
+            <div style="background:#1e293b;border-radius:8px;padding:14px 18px;">
+                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;">Group Stage</div>
+                <div style="display:flex;gap:16px;font-size:0.85rem;">
+                    <span>1st: <strong>${fmtPct(adv.grp1st)}</strong></span>
+                    <span>2nd: <strong>${fmtPct(adv.grp2nd)}</strong></span>
+                    <span>3rd: <strong>${fmtPct(adv.grp3rd)}</strong></span>
+                    <span>4th: <strong>${fmtPct(adv.grp4th)}</strong></span>
+                    <span style="color:#22c55e">Advance: <strong>${fmtPct(adv.advance)}</strong></span>
+                </div>
+            </div>
+            <div style="background:#1e293b;border-radius:8px;padding:14px 18px;">
+                <div style="color:#94a3b8;font-size:0.75rem;margin-bottom:6px;">Knockout</div>
+                <div style="display:flex;gap:16px;font-size:0.85rem;">
+                    <span>R32: <strong>${fmtPct(adv.winR32)}</strong></span>
+                    <span>R16: <strong>${fmtPct(adv.winR16)}</strong></span>
+                    <span>QF: <strong>${fmtPct(adv.winQF)}</strong></span>
+                    <span>SF: <strong>${fmtPct(adv.winSF)}</strong></span>
+                    <span style="color:#facc15">Win: <strong>${fmtPct(adv.winFinal)}</strong></span>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    // --- Group matchups ---
+    const groupTeams = GROUPS[selectedGroup];
+    const groupOpponents = groupTeams.filter(t => t.name !== selectedTeam.name);
+    html += `<h3 style="font-size:1rem;margin-bottom:10px;color:#94a3b8;">Group ${selectedGroup} Matchups</h3>`;
+    html += `<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:24px;max-width:500px;">`;
+    for (const opp of groupOpponents) {
+        const p = computeMatchProbs(elo, effElo(opp));
+        const wPct = (p.winA * 100).toFixed(0);
+        const dPct = (p.draw * 100).toFixed(0);
+        const lPct = (p.winB * 100).toFixed(0);
+        html += `<div class="matchup">
+            <span class="team-a">${flag(selectedTeam.name)} ${selectedTeam.name}</span>
+            <div class="prob-bar-container">
+                <div class="prob-w" style="width:${wPct}%">${wPct > 8 ? wPct + '%' : ''}</div>
+                <div class="prob-d" style="width:${dPct}%">${dPct > 8 ? dPct + '%' : ''}</div>
+                <div class="prob-l" style="width:${lPct}%">${lPct > 8 ? lPct + '%' : ''}</div>
+            </div>
+            <span class="team-b">${opp.name} ${flag(opp.name)}</span>
+        </div>`;
+    }
+    html += `</div>`;
+
+    // --- vs All other teams ---
+    html += `<h3 style="font-size:1rem;margin-bottom:10px;color:#94a3b8;">Hypothetical vs All Teams</h3>`;
+    const allTeams = [];
+    for (const [g, teams] of Object.entries(GROUPS)) {
+        for (const t of teams) {
+            if (t.name === selectedTeam.name) continue;
+            const p = computeMatchProbs(elo, effElo(t));
+            allTeams.push({ name: t.name, group: g, winA: p.winA, draw: p.draw, winB: p.winB, oppElo: effElo(t) });
+        }
+    }
+    allTeams.sort((a, b) => b.winA - a.winA);
+
+    html += `<table style="max-width:700px;"><thead><tr>
+        <th style="text-align:left;cursor:default">Opponent</th>
+        <th style="cursor:default">Grp</th>
+        <th style="cursor:default">ELO</th>
+        <th style="cursor:default">Win</th>
+        <th style="cursor:default">Draw</th>
+        <th style="cursor:default">Lose</th>
+        <th style="cursor:default;text-align:left;min-width:150px">Probability</th>
+    </tr></thead><tbody>`;
+    for (const t of allTeams) {
+        const wPct = (t.winA * 100).toFixed(1);
+        const dPct = (t.draw * 100).toFixed(1);
+        const lPct = (t.winB * 100).toFixed(1);
+        const wBar = (t.winA * 100).toFixed(0);
+        const dBar = (t.draw * 100).toFixed(0);
+        const lBar = (t.winB * 100).toFixed(0);
+        html += `<tr>
+            <td class="team-name">${flag(t.name)} ${t.name}</td>
+            <td class="group-cell">${t.group}</td>
+            <td class="elo-cell">${t.oppElo}</td>
+            <td style="color:#22c55e">${wPct}%</td>
+            <td style="color:#94a3b8">${dPct}%</td>
+            <td style="color:#ef4444">${lPct}%</td>
+            <td><div class="prob-bar-container" style="height:14px;min-width:130px;">
+                <div class="prob-w" style="width:${wBar}%"></div>
+                <div class="prob-d" style="width:${dBar}%"></div>
+                <div class="prob-l" style="width:${lBar}%"></div>
+            </div></td>
+        </tr>`;
+    }
+    html += `</tbody></table>`;
+
+    container.innerHTML = html;
+}
+
 // ====== ELO EDITOR ======
 function renderEloEditor() {
     const grid = document.getElementById('eloGrid');
@@ -1876,6 +2033,7 @@ document.getElementById('potSize').addEventListener('input', () => {
 // ====== INIT ======
 renderEloEditor();
 renderMatchups();
+populateTeamList();
 // Auto-run simulation on page load
 setTimeout(() => runSimulation(), 100);
 </script>
