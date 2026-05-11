@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v25</title>
+    <title>WC Calcutta v26</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -547,12 +547,12 @@
         <table id="marketWinnerTable">
             <thead>
                 <tr>
-                    <th style="text-align:left;cursor:default">#</th>
-                    <th style="text-align:left;cursor:default">Team</th>
-                    <th style="cursor:default">FanDuel</th>
-                    <th style="cursor:default">Our Sim</th>
-                    <th style="cursor:default">Delta</th>
-                    <th style="cursor:default;text-align:left">Edge</th>
+                    <th data-mcol="rank" style="text-align:left">#</th>
+                    <th data-mcol="name" style="text-align:left">Team</th>
+                    <th data-mcol="marketProb">FanDuel</th>
+                    <th data-mcol="simProb">Our Sim</th>
+                    <th data-mcol="delta">Delta</th>
+                    <th data-mcol="delta" style="text-align:left">Edge</th>
                 </tr>
             </thead>
             <tbody id="marketWinnerBody"></tbody>
@@ -1144,17 +1144,26 @@ function updateStageValues() {
 }
 
 function renderStageTable(data) {
-    const sorted = sortData(data, sortCol, sortDir);
-    const totalPts = sorted.reduce((s, t) => s + t.totalPts, 0);
-    const fmtPct = v => v > 0 ? (v * 100).toFixed(1) + '%' : '—';
-
-    const { impliedPot, draftedSpend, draftedCount, estPot } = getImpliedPot(sorted, totalPts);
+    const totalPts = data.reduce((s, t) => s + t.totalPts, 0);
+    const { impliedPot, draftedSpend, draftedCount, estPot } = getImpliedPot(data, totalPts);
     const activePot = draftedCount > 0 ? impliedPot : estPot;
+
+    // Compute sortable fields on each item
+    for (const t of data) {
+        t.pctPot = totalPts > 0 ? t.totalPts / totalPts : 0;
+        t.price = t.pctPot * activePot;
+        const auction = auctionPrices[t.name];
+        t.auctionPrice = (auction != null && auction > 0) ? auction : -1;
+        t.edge = t.auctionPrice > 0 ? t.price - t.auctionPrice : -9999;
+    }
+
+    const sorted = sortData(data, sortCol, sortDir);
+    const fmtPct = v => v > 0 ? (v * 100).toFixed(1) + '%' : '—';
 
     const tbody = document.getElementById('stageBody');
     tbody.innerHTML = sorted.map((t, i) => {
-        const pct = totalPts > 0 ? t.totalPts / totalPts : 0;
-        const fairValue = pct * activePot;
+        const pct = t.pctPot;
+        const fairValue = t.price;
         const auction = auctionPrices[t.name];
         const isDrafted = auction != null && auction > 0;
         const auctionVal = isDrafted ? auction : '';
@@ -1308,6 +1317,9 @@ function renderAdvancement() {
 }
 
 // ====== MARKET COMPARISON ======
+let marketSortCol = 'simProb';
+let marketSortDir = 'desc';
+
 function renderMarketComparison() {
     if (!advResults) return;
 
@@ -1319,8 +1331,11 @@ function renderMarketComparison() {
         const delta = simProb - marketProb;
         winnerData.push({ name, marketProb, simProb, delta });
     }
-    // Sort by market prob descending
-    winnerData.sort((a, b) => b.marketProb - a.marketProb);
+    winnerData.sort((a, b) => {
+        let va = a[marketSortCol], vb = b[marketSortCol];
+        if (marketSortCol === 'name') return marketSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        return marketSortDir === 'asc' ? va - vb : vb - va;
+    });
 
     const tbody = document.getElementById('marketWinnerBody');
     const fmtPct = v => (v * 100).toFixed(2) + '%';
@@ -1375,6 +1390,14 @@ function renderMarketComparison() {
             ${rows}
         </div>`;
     }).join('');
+
+    // Update sort indicators
+    document.querySelectorAll('#marketWinnerTable th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.dataset.mcol === marketSortCol) {
+            th.classList.add(marketSortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+        }
+    });
 }
 
 // ====== ELO EDITOR ======
@@ -1664,6 +1687,21 @@ document.querySelectorAll('#stageTable th, #breakdownTable th').forEach(th => {
             sortDir = col === 'team' || col === 'group' ? 'asc' : 'desc';
         }
         renderAll();
+    });
+});
+
+// Market table sorting
+document.querySelectorAll('#marketWinnerTable th').forEach(th => {
+    th.addEventListener('click', () => {
+        const col = th.dataset.mcol;
+        if (!col) return;
+        if (marketSortCol === col) {
+            marketSortDir = marketSortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            marketSortCol = col;
+            marketSortDir = col === 'name' ? 'asc' : 'desc';
+        }
+        renderMarketComparison();
     });
 });
 
