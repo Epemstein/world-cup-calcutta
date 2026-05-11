@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v28</title>
+    <title>WC Calcutta v29</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1470,7 +1470,7 @@ function updateAdjPreview(input, group, name) {
 }
 
 function resetElo() {
-    if (!confirm('Reset all ELO adjustments and auction prices across all connected browsers?')) return;
+    if (!confirm('Reset all ELO adjustments across all connected browsers?')) return;
     for (const [g, teams] of Object.entries(GROUPS)) {
         for (let i = 0; i < teams.length; i++) {
             teams[i].adj = 0;
@@ -1478,18 +1478,12 @@ function resetElo() {
     }
     DRAW_BASE = DEFAULT_DRAW_BASE;
     DRAW_DECAY = DEFAULT_DRAW_DECAY;
-    // Clear local auction prices
-    for (const key of Object.keys(auctionPrices)) delete auctionPrices[key];
-    // Push reset to Firebase
+    // Push reset to Firebase (ELO only)
     if (typeof db !== 'undefined') {
         eloRef.set(null);
-        auctionRef.set(null);
-        potRef.set(50000);
     }
-    document.getElementById('potSize').value = 50000;
     renderEloEditor();
     renderMatchups();
-    updateStageValues();
 }
 
 // ====== KALSHI MARKET CALIBRATION ======
@@ -1744,6 +1738,13 @@ const db = firebase.database();
 // Flag to prevent write-back loops when receiving remote updates
 let suppressSync = false;
 
+// Debounce helper
+const debounceTimers = {};
+function debounce(key, fn, delay = 800) {
+    clearTimeout(debounceTimers[key]);
+    debounceTimers[key] = setTimeout(fn, delay);
+}
+
 // --- Sync Auction Prices ---
 const auctionRef = db.ref('auction');
 auctionRef.on('value', (snapshot) => {
@@ -1759,18 +1760,26 @@ auctionRef.on('value', (snapshot) => {
     suppressSync = false;
 });
 
-// Override onAuctionInput to also push to Firebase
+// Override onAuctionInput to also push to Firebase (debounced)
 const _origOnAuctionInput = onAuctionInput;
 onAuctionInput = function(name, value) {
     const v = parseFloat(value);
     if (!isNaN(v) && v > 0) {
         auctionPrices[name] = v;
-        if (!suppressSync) auctionRef.child(name).set(v);
     } else {
         delete auctionPrices[name];
-        if (!suppressSync) auctionRef.child(name).remove();
     }
     updateStageValues();
+    // Debounce the Firebase write so typing isn't interrupted
+    if (!suppressSync) {
+        debounce('auction_' + name, () => {
+            if (auctionPrices[name] != null) {
+                auctionRef.child(name).set(auctionPrices[name]);
+            } else {
+                auctionRef.child(name).remove();
+            }
+        });
+    }
 };
 
 // --- Sync ELO Adjustments ---
@@ -1790,7 +1799,7 @@ eloRef.on('value', (snapshot) => {
     suppressSync = false;
 });
 
-// Override updateAdj to also push to Firebase
+// Override updateAdj to also push to Firebase (debounced)
 const _origUpdateAdj = updateAdj;
 updateAdj = function(group, name, val) {
     const team = GROUPS[group].find(t => t.name === name);
@@ -1798,8 +1807,8 @@ updateAdj = function(group, name, val) {
         team.adj = parseInt(val) || 0;
         updateEffDisplay(team, group, name);
         if (!suppressSync) {
-            const key = group + '_' + name.replace(/[^a-zA-Z0-9]/g, '_');
-            eloRef.child(key).set(team.adj);
+            const fbKey = group + '_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+            debounce('elo_' + fbKey, () => eloRef.child(fbKey).set(team.adj));
         }
     }
 };
@@ -1811,8 +1820,8 @@ updateAdjPreview = function(input, group, name) {
         team.adj = parseInt(input.value) || 0;
         updateEffDisplay(team, group, name);
         if (!suppressSync) {
-            const key = group + '_' + name.replace(/[^a-zA-Z0-9]/g, '_');
-            eloRef.child(key).set(team.adj);
+            const fbKey = group + '_' + name.replace(/[^a-zA-Z0-9]/g, '_');
+            debounce('elo_' + fbKey, () => eloRef.child(fbKey).set(team.adj));
         }
     }
     renderMatchups();
@@ -1833,8 +1842,8 @@ potRef.on('value', (snapshot) => {
 // Override pot size input
 document.getElementById('potSize').addEventListener('input', () => {
     const val = parseFloat(document.getElementById('potSize').value) || 0;
-    if (!suppressSync) potRef.set(val);
     updateStageValues();
+    if (!suppressSync) debounce('potSize', () => potRef.set(val));
 });
 
 // ====== INIT ======
