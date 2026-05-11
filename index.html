@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v36</title>
+    <title>WC Calcutta v37</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -568,8 +568,8 @@
 <!-- MARKET COMPARISON TAB -->
 <div class="tab-content" id="tab-market">
     <div class="market-section">
-        <h2>Our Sim vs FanDuel</h2>
-        <p style="color:#64748b;font-size:0.8rem;margin-bottom:12px;">Green = we're higher than market, Red = we're lower.</p>
+        <h2>Our Sim vs Market</h2>
+        <p style="color:#64748b;font-size:0.8rem;margin-bottom:12px;">Win Group: FanDuel · Win Tournament: Kalshi · Green = we're higher, Red = we're lower.</p>
         <table id="marketWinnerTable">
             <thead>
                 <tr>
@@ -584,7 +584,7 @@
                     <th data-mcol="grpMarket">FD</th>
                     <th data-mcol="grpSim">Sim</th>
                     <th data-mcol="grpDelta">Delta</th>
-                    <th data-mcol="marketProb">FD</th>
+                    <th data-mcol="marketProb">Kalshi</th>
                     <th data-mcol="simProb">Sim</th>
                     <th data-mcol="delta">Delta</th>
                 </tr>
@@ -594,6 +594,7 @@
     </div>
     <div class="market-section">
         <h2>Group Winners: Our Sim vs FanDuel</h2>
+
         <div class="matchups-container" id="marketGroupGrid"></div>
     </div>
 </div>
@@ -1812,28 +1813,27 @@ const MARKET_GROUP_WINNERS = FD_GROUP_WINNERS_RAW.map(([group, teams]) => {
     return [group, probs.map(([name, p]) => [name, p / total])];
 });
 
-// FanDuel outright World Cup winner odds
-const FD_WINNER_RAW = [
-    ["Spain", 430], ["France", 470], ["England", 650], ["Brazil", 750],
-    ["Argentina", 850], ["Germany", 1100], ["Portugal", 1100], ["Netherlands", 1900],
-    ["Norway", 2200], ["Belgium", 3000], ["Morocco", 4000], ["Colombia", 4000],
-    ["Japan", 5500], ["United States", 5500], ["Uruguay", 6500], ["Mexico", 6500],
-    ["Switzerland", 6500], ["Turkey", 8000], ["Croatia", 8000], ["Sweden", 8000],
-    ["Ecuador", 8000], ["Senegal", 8000], ["Austria", 10000], ["Paraguay", 10000],
-    ["Canada", 15000], ["Scotland", 15000], ["Ivory Coast", 17500], ["Egypt", 17500],
-    ["Czech Republic", 17500], ["Ghana", 22500], ["Algeria", 22500], ["Iran", 30000],
-    ["Australia", 30000], ["Tunisia", 30000], ["South Korea", 30000],
-    ["Bosnia & Herzegovina", 30000], ["DR Congo", 40000], ["Saudi Arabia", 50000],
-    ["New Zealand", 50000], ["Qatar", 50000], ["Cape Verde", 50000], ["Curaçao", 50000],
-    ["Haiti", 50000], ["Iraq", 50000], ["Jordan", 50000], ["Panama", 50000],
-    ["Uzbekistan", 50000], ["South Africa", 50000],
+// Kalshi outright World Cup winner odds (Yes price in cents = implied %)
+const KALSHI_WINNER_RAW = [
+    ["France", 18.9], ["Spain", 16.8], ["England", 11.4], ["Brazil", 9.9],
+    ["Argentina", 9.6], ["Portugal", 8.4], ["Germany", 5.4], ["Netherlands", 3.6],
+    ["Belgium", 2.0], ["Colombia", 1.9], ["Japan", 1.9], ["Norway", 1.7],
+    ["Morocco", 1.6], ["Mexico", 1.5], ["United States", 1.5], ["Croatia", 1.1],
+    ["Uruguay", 1.1], ["Bosnia & Herzegovina", 1.0], ["DR Congo", 1.0],
+    ["Czech Republic", 1.0], ["Iraq", 1.0], ["Switzerland", 0.9],
+    ["Senegal", 0.8], ["Turkey", 0.8], ["Ecuador", 0.7], ["Canada", 0.5],
+    ["Austria", 0.4], ["Egypt", 0.4], ["Ivory Coast", 0.3], ["South Korea", 0.3],
+    ["Sweden", 0.4], ["Australia", 0.2], ["Algeria", 0.2], ["Paraguay", 0.2],
+    ["South Africa", 0.2], ["Scotland", 0.3], ["Cape Verde", 0.1], ["Curaçao", 0.1],
+    ["Ghana", 0.1], ["Haiti", 0.1], ["Iran", 0.1], ["Jordan", 0.1],
+    ["New Zealand", 0.1], ["Panama", 0.1], ["Qatar", 0.1], ["Saudi Arabia", 0.1],
+    ["Tunisia", 0.2], ["Uzbekistan", 0.1],
 ];
 
-// De-vig outright winner odds
+// De-vig Kalshi winner odds (normalize so they sum to 100%)
 const MARKET_WINNER = (() => {
-    const probs = FD_WINNER_RAW.map(([name, odds]) => [name, americanToProb(odds)]);
-    const total = probs.reduce((s, [, p]) => s + p, 0);
-    return Object.fromEntries(probs.map(([name, p]) => [name, p / total]));
+    const total = KALSHI_WINNER_RAW.reduce((s, [, p]) => s + p, 0);
+    return Object.fromEntries(KALSHI_WINNER_RAW.map(([name, p]) => [name, (p / total)]));
 })();
 
 function calibrateToMarket() {
