@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v35</title>
+    <title>WC Calcutta v36</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -437,6 +437,7 @@
     <button class="tab-btn" onclick="switchTab('breakdown')">Points Breakdown</button>
     <button class="tab-btn" onclick="switchTab('matchups')">Matchups</button>
     <button class="tab-btn" onclick="switchTab('market')">vs Market</button>
+    <button class="tab-btn" onclick="switchTab('history')">History</button>
 </div>
 
 <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
@@ -595,6 +596,19 @@
         <h2>Group Winners: Our Sim vs FanDuel</h2>
         <div class="matchups-container" id="marketGroupGrid"></div>
     </div>
+</div>
+
+<!-- HISTORY TAB -->
+<div class="tab-content" id="tab-history">
+    <h2 style="margin-bottom:8px; font-size:1.2rem;">Activity Log</h2>
+    <p style="color:#64748b;font-size:0.8rem;margin-bottom:16px;">Actions synced across all connected browsers.</p>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+        <label style="font-size:0.85rem;color:#aaa;">Your name:</label>
+        <input type="text" id="userName" placeholder="Enter name..."
+            style="padding:4px 8px;background:#1a2a3a;border:1px solid #3a4a5a;color:#fff;border-radius:4px;font-size:0.85rem;width:150px;"
+            oninput="localStorage.setItem('wcCalcuttaName',this.value)">
+    </div>
+    <div id="historyLog" style="max-height:500px;overflow-y:auto;"></div>
 </div>
 
 </div><!-- /tab-panels -->
@@ -1080,6 +1094,7 @@ function runSimulation() {
             if (typeof db !== 'undefined' && !suppressSync) {
                 db.ref('simResults').set(simResults);
                 db.ref('advResults').set(advResults);
+                logAction(`ran a new simulation (${numSims.toLocaleString()} runs)`);
             }
         }
     }
@@ -1699,6 +1714,7 @@ function resetElo() {
     // Push reset to Firebase (ELO only)
     if (typeof db !== 'undefined') {
         eloRef.set(null);
+        logAction('reset all ELO adjustments');
     }
     renderEloEditor();
     renderMatchups();
@@ -1993,8 +2009,10 @@ onAuctionInput = function(name, value) {
         debounce('auction_' + name, () => {
             if (auctionPrices[name] != null) {
                 auctionRef.child(name).set(auctionPrices[name]);
+                logAction(`set ${name} auction price to ${fmtDollar(auctionPrices[name])}`);
             } else {
                 auctionRef.child(name).remove();
+                logAction(`cleared ${name} auction price`);
             }
         });
     }
@@ -2064,6 +2082,35 @@ document.getElementById('potSize').addEventListener('input', () => {
     if (!suppressSync) debounce('potSize', () => potRef.set(val));
 });
 
+// --- History Log ---
+const historyRef = db.ref('history');
+function getUserName() {
+    return document.getElementById('userName')?.value || 'Anonymous';
+}
+function logAction(action) {
+    historyRef.push({
+        user: getUserName(),
+        action: action,
+        time: Date.now()
+    });
+}
+historyRef.orderByChild('time').limitToLast(100).on('value', (snapshot) => {
+    const entries = [];
+    snapshot.forEach(child => entries.push(child.val()));
+    entries.reverse();
+    const log = document.getElementById('historyLog');
+    if (!log) return;
+    log.innerHTML = entries.map(e => {
+        const d = new Date(e.time);
+        const timeStr = d.toLocaleString();
+        return `<div style="padding:8px 12px;border-bottom:1px solid #1e293b;font-size:0.85rem;">
+            <span style="color:#60a5fa;font-weight:600">${e.user}</span>
+            <span style="color:#94a3b8"> ${e.action}</span>
+            <span style="color:#475569;font-size:0.75rem;float:right">${timeStr}</span>
+        </div>`;
+    }).join('');
+});
+
 // --- Sync Sim Results ---
 const simRef = db.ref('simResults');
 const advRef = db.ref('advResults');
@@ -2085,6 +2132,9 @@ simRef.on('value', (snapshot) => {
 renderEloEditor();
 renderMatchups();
 populateTeamList();
+// Restore saved username
+const savedName = localStorage.getItem('wcCalcuttaName');
+if (savedName) document.getElementById('userName').value = savedName;
 // Check Firebase for existing sim results, otherwise auto-run
 simRef.once('value', (snapshot) => {
     if (snapshot.val()) {
