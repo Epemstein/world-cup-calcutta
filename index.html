@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v33</title>
+    <title>WC Calcutta v34</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -695,6 +695,7 @@ const FLAGS = {
     "England":"🏴󠁧󠁢󠁥󠁮󠁧󠁿","Croatia":"🇭🇷","Panama":"🇵🇦","Ghana":"🇬🇭",
 };
 function flag(name) { return FLAGS[name] || ''; }
+function fmtDollar(v) { return '$' + Math.round(v).toLocaleString(); }
 
 // Deep copy for reset
 const DEFAULT_GROUPS = JSON.parse(JSON.stringify(GROUPS));
@@ -1153,8 +1154,8 @@ function updateStageValues() {
     const statsEl = document.getElementById('auctionStats');
     if (draftedCount > 0) {
         statsEl.innerHTML = `<span style="color:#34d399">Drafted: ${draftedCount}/48</span> · `
-            + `<span style="color:#facc15">Spent: $${draftedSpend.toFixed(0)}</span> · `
-            + `<span style="color:#60a5fa">Implied Pot: $${impliedPot.toFixed(0)}</span>`;
+            + `<span style="color:#facc15">Spent: ${fmtDollar(draftedSpend)}</span> · `
+            + `<span style="color:#60a5fa">Implied Pot: ${fmtDollar(impliedPot)}</span>`;
     } else {
         statsEl.innerHTML = '';
     }
@@ -1172,7 +1173,7 @@ function updateStageValues() {
 
         // Update fair value cell
         const fairCell = row.querySelector('.price-cell');
-        if (fairCell) fairCell.textContent = '$' + fairValue.toFixed(0);
+        if (fairCell) fairCell.textContent = fmtDollar(fairValue);
 
         // Update edge cell
         const edgeCell = row.querySelector('.edge-cell');
@@ -1181,7 +1182,8 @@ function updateStageValues() {
                 const edge = fairValue - auction;
                 const pctEdge = auction > 0 ? (edge / auction * 100).toFixed(0) : 0;
                 const sign = edge >= 0 ? '+' : '';
-                edgeCell.innerHTML = `<span style="color:${edge >= 0 ? '#34d399' : '#ef4444'}">${sign}$${edge.toFixed(0)} (${sign}${pctEdge}%)</span>`;
+                edgeCell.innerHTML = `<span style="color:${edge >= 0 ? '#34d399' : '#ef4444'}">${sign}${fmtDollar(Math.abs(edge))} (${sign}${pctEdge}%)</span>`;
+                if (edge < 0) edgeCell.innerHTML = `<span style="color:#ef4444">-${fmtDollar(Math.abs(edge))} (${sign}${pctEdge}%)</span>`;
             } else {
                 edgeCell.textContent = '—';
             }
@@ -1221,13 +1223,15 @@ function renderStageTable(data) {
             const edge = fairValue - auction;
             const pctEdge = auction > 0 ? (edge / auction * 100).toFixed(0) : 0;
             const sign = edge >= 0 ? '+' : '';
-            edgeHtml = `<span style="color:${edge >= 0 ? '#34d399' : '#ef4444'}">${sign}$${edge.toFixed(0)} (${sign}${pctEdge}%)</span>`;
+            edgeHtml = edge >= 0
+                ? `<span style="color:#34d399">+${fmtDollar(edge)} (+${pctEdge}%)</span>`
+                : `<span style="color:#ef4444">-${fmtDollar(Math.abs(edge))} (${pctEdge}%)</span>`;
         }
         return `<tr style="${isDrafted ? 'opacity:0.6' : ''}">
             <td>${i + 1}</td>
             <td class="team-name">${teamLink(t.name)}</td>
             <td style="color:#94a3b8">${(pct * 100).toFixed(1)}%</td>
-            <td class="price-cell">$${fairValue.toFixed(0)}</td>
+            <td class="price-cell">${fmtDollar(fairValue)}</td>
             <td><input type="number" value="${auctionVal}" min="0" step="1"
                 oninput="onAuctionInput('${t.name.replace(/'/g,"\\'")}',this.value)"
                 style="width:60px;padding:2px 4px;background:#0f1923;border:1px solid #334155;color:#34d399;border-radius:3px;text-align:center;font-size:0.8rem;"
