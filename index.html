@@ -619,57 +619,147 @@ function runOneSim() {
         groupWinners[g] = standings;
     }
 
-    // Determine advancing teams: top 2 from each group (24) + 8 best 3rd-place teams
-    const advancingTeams = [];
+    // Determine advancing teams
+    const pos = {}; // pos['1A'] = team name, pos['2A'] = team name, etc.
     const thirdPlaceTeams = [];
     for (const [g, standings] of Object.entries(groupWinners)) {
-        // 1st place
         teamStats[standings[0].name].advanceBonus = ADVANCE_BONUS;
         teamStats[standings[0].name].groupWinBonus = GROUP_WIN_BONUS;
-        advancingTeams.push({ name: standings[0].name, seed: 1, group: g });
-        // 2nd place
+        pos['1' + g] = standings[0].name;
         teamStats[standings[1].name].advanceBonus = ADVANCE_BONUS;
-        advancingTeams.push({ name: standings[1].name, seed: 2, group: g });
-        // 3rd place - candidate for best 3rd
+        pos['2' + g] = standings[1].name;
         thirdPlaceTeams.push({ name: standings[2].name, pts: standings[2].pts, group: g });
     }
 
     // Best 8 third-place teams advance
     thirdPlaceTeams.sort((a, b) => b.pts - a.pts || (Math.random() - 0.5));
+    const qualifiedThirds = {};
     for (let i = 0; i < 8; i++) {
         teamStats[thirdPlaceTeams[i].name].advanceBonus = ADVANCE_BONUS;
-        advancingTeams.push({ name: thirdPlaceTeams[i].name, seed: 3, group: thirdPlaceTeams[i].group });
+        qualifiedThirds[thirdPlaceTeams[i].group] = thirdPlaceTeams[i].name;
     }
 
-    // --- Knockout Rounds ---
-    // Simplified bracket: shuffle advancing teams into R32 matchups
-    // (Real bracket is more structured but this is fair for Monte Carlo)
-    let bracket = [...advancingTeams].sort(() => Math.random() - 0.5);
+    // --- FIFA R32 Bracket with 3rd-place assignment ---
+    // Each R32 slot for a 3rd-place team lists which groups it could come from.
+    // We greedily assign: for each slot (most constrained first), pick from available qualified 3rds.
+    const thirdSlots = [
+        { match: 74, possibleGroups: ['A','B','C','D','F'] },
+        { match: 77, possibleGroups: ['C','D','F','G','H'] },
+        { match: 79, possibleGroups: ['C','E','F','H','I'] },
+        { match: 80, possibleGroups: ['E','H','I','J','K'] },
+        { match: 81, possibleGroups: ['B','E','F','I','J'] },
+        { match: 82, possibleGroups: ['A','E','H','I','J'] },
+        { match: 85, possibleGroups: ['E','F','G','I','J'] },
+        { match: 87, possibleGroups: ['D','E','I','J','L'] },
+    ];
 
-    const koRoundKeys = ['r32Pts', 'r16Pts', 'qfPts', 'sfPts', 'finalPts'];
-    for (let round = 0; round < KO_ROUNDS.length; round++) {
-        const nextBracket = [];
-        for (let i = 0; i < bracket.length; i += 2) {
-            if (i + 1 >= bracket.length) {
-                nextBracket.push(bracket[i]);
-                continue;
-            }
-            const a = bracket[i];
-            const b = bracket[i + 1];
-            const result = simulateKOMatch(teamStats[a.name].elo, teamStats[b.name].elo);
-            const key = koRoundKeys[round];
-            if (result.winner === 'A') {
-                teamStats[a.name][key] = KO_ROUNDS[round].win;
-                if (result.shootout) teamStats[b.name][key] = KO_ROUNDS[round].soLoss;
-                nextBracket.push(a);
-            } else {
-                teamStats[b.name][key] = KO_ROUNDS[round].win;
-                if (result.shootout) teamStats[a.name][key] = KO_ROUNDS[round].soLoss;
-                nextBracket.push(b);
-            }
+    // Filter possible groups to only those that actually qualified
+    const availableThirds = new Set(Object.keys(qualifiedThirds));
+    const thirdAssign = {}; // match -> group letter assigned
+
+    // Sort slots by number of available options (most constrained first)
+    function assignThirds(slotIdx, available) {
+        if (slotIdx >= thirdSlots.length) return true;
+        const slot = thirdSlots[slotIdx];
+        const options = slot.possibleGroups.filter(g => available.has(g));
+        // Shuffle options for randomness when multiple valid assignments exist
+        for (let i = options.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [options[i], options[j]] = [options[j], options[i]];
         }
-        bracket = nextBracket;
+        for (const g of options) {
+            available.delete(g);
+            thirdAssign[slot.match] = g;
+            if (assignThirds(slotIdx + 1, available)) return true;
+            available.add(g);
+            delete thirdAssign[slot.match];
+        }
+        return false;
     }
+
+    // Sort by most constrained first for efficiency
+    const sortedSlotIndices = thirdSlots.map((s, i) => i);
+    sortedSlotIndices.sort((a, b) => {
+        const ca = thirdSlots[a].possibleGroups.filter(g => availableThirds.has(g)).length;
+        const cb = thirdSlots[b].possibleGroups.filter(g => availableThirds.has(g)).length;
+        return ca - cb;
+    });
+    const reorderedSlots = sortedSlotIndices.map(i => thirdSlots[i]);
+    const origSlots = [...thirdSlots];
+    for (let i = 0; i < thirdSlots.length; i++) thirdSlots[i] = reorderedSlots[i];
+    assignThirds(0, new Set(availableThirds));
+    // Restore original order
+    for (let i = 0; i < thirdSlots.length; i++) thirdSlots[i] = origSlots[i];
+
+    // Build the R32 matchups per FIFA bracket
+    // Match 73: 2A vs 2B    Match 74: 1E vs 3rd    Match 75: 1F vs 2C    Match 76: 1C vs 2F
+    // Match 77: 1I vs 3rd   Match 78: 2E vs 2I     Match 79: 1A vs 3rd   Match 80: 1L vs 3rd
+    // Match 81: 1D vs 3rd   Match 82: 1G vs 3rd    Match 83: 2K vs 2L    Match 84: 1H vs 2J
+    // Match 85: 1B vs 3rd   Match 86: 1J vs 2H     Match 87: 1K vs 3rd   Match 88: 2D vs 2G
+    const r32 = {
+        73: [pos['2A'], pos['2B']],
+        74: [pos['1E'], qualifiedThirds[thirdAssign[74]]],
+        75: [pos['1F'], pos['2C']],
+        76: [pos['1C'], pos['2F']],
+        77: [pos['1I'], qualifiedThirds[thirdAssign[77]]],
+        78: [pos['2E'], pos['2I']],
+        79: [pos['1A'], qualifiedThirds[thirdAssign[79]]],
+        80: [pos['1L'], qualifiedThirds[thirdAssign[80]]],
+        81: [pos['1D'], qualifiedThirds[thirdAssign[81]]],
+        82: [pos['1G'], qualifiedThirds[thirdAssign[82]]],
+        83: [pos['2K'], pos['2L']],
+        84: [pos['1H'], pos['2J']],
+        85: [pos['1B'], qualifiedThirds[thirdAssign[85]]],
+        86: [pos['1J'], pos['2H']],
+        87: [pos['1K'], qualifiedThirds[thirdAssign[87]]],
+        88: [pos['2D'], pos['2G']],
+    };
+
+    // Play R32
+    function playKOMatch(nameA, nameB, roundKey, roundIdx) {
+        const result = simulateKOMatch(teamStats[nameA].elo, teamStats[nameB].elo);
+        if (result.winner === 'A') {
+            teamStats[nameA][roundKey] = KO_ROUNDS[roundIdx].win;
+            if (result.shootout) teamStats[nameB][roundKey] = KO_ROUNDS[roundIdx].soLoss;
+            return nameA;
+        } else {
+            teamStats[nameB][roundKey] = KO_ROUNDS[roundIdx].win;
+            if (result.shootout) teamStats[nameA][roundKey] = KO_ROUNDS[roundIdx].soLoss;
+            return nameB;
+        }
+    }
+
+    const r32w = {};
+    for (const [m, [a, b]] of Object.entries(r32)) {
+        r32w[m] = playKOMatch(a, b, 'r32Pts', 0);
+    }
+
+    // R16: Match 89: W74 vs W77, 90: W73 vs W75, 91: W76 vs W78, 92: W79 vs W80
+    //      93: W83 vs W84, 94: W81 vs W82, 95: W86 vs W88, 96: W85 vs W87
+    const r16w = {};
+    r16w[89] = playKOMatch(r32w[74], r32w[77], 'r16Pts', 1);
+    r16w[90] = playKOMatch(r32w[73], r32w[75], 'r16Pts', 1);
+    r16w[91] = playKOMatch(r32w[76], r32w[78], 'r16Pts', 1);
+    r16w[92] = playKOMatch(r32w[79], r32w[80], 'r16Pts', 1);
+    r16w[93] = playKOMatch(r32w[83], r32w[84], 'r16Pts', 1);
+    r16w[94] = playKOMatch(r32w[81], r32w[82], 'r16Pts', 1);
+    r16w[95] = playKOMatch(r32w[86], r32w[88], 'r16Pts', 1);
+    r16w[96] = playKOMatch(r32w[85], r32w[87], 'r16Pts', 1);
+
+    // QF: 97: W89 vs W90, 98: W93 vs W94, 99: W91 vs W92, 100: W95 vs W96
+    const qfw = {};
+    qfw[97] = playKOMatch(r16w[89], r16w[90], 'qfPts', 2);
+    qfw[98] = playKOMatch(r16w[93], r16w[94], 'qfPts', 2);
+    qfw[99] = playKOMatch(r16w[91], r16w[92], 'qfPts', 2);
+    qfw[100] = playKOMatch(r16w[95], r16w[96], 'qfPts', 2);
+
+    // SF: 101: W97 vs W98, 102: W99 vs W100
+    const sfw = {};
+    sfw[101] = playKOMatch(qfw[97], qfw[98], 'sfPts', 3);
+    sfw[102] = playKOMatch(qfw[99], qfw[100], 'sfPts', 3);
+
+    // Final: 103: W101 vs W102
+    playKOMatch(sfw[101], sfw[102], 'finalPts', 4);
 
     // --- Pot Bonus ---
     const potScores = { 1: {}, 2: {}, 3: {}, 4: {} };
