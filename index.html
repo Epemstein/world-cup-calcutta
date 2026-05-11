@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v9</title>
+    <title>WC Calcutta v10</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -411,6 +411,10 @@
                 <tr>
                     <th style="text-align:left;cursor:default">Team</th>
                     <th style="cursor:default">Grp</th>
+                    <th style="cursor:default">1st</th>
+                    <th style="cursor:default">2nd</th>
+                    <th style="cursor:default">3rd</th>
+                    <th style="cursor:default">4th</th>
                     <th style="cursor:default">Advance</th>
                     <th style="cursor:default">R32 <span style="color:#3b82f6">W</span> / <span style="color:#f97316">SO</span></th>
                     <th style="cursor:default">R16 <span style="color:#6366f1">W</span> / <span style="color:#f97316">SO</span></th>
@@ -583,7 +587,7 @@ function runOneSim() {
                 advanceBonus: 0, groupWinBonus: 0,
                 r32Pts: 0, r16Pts: 0, qfPts: 0, sfPts: 0, finalPts: 0,
                 potBonus: 0, totalPts: 0,
-                groupPts: 0, // for ranking within group
+                groupPts: 0, groupFinish: 4, // for ranking within group
             };
         }
     }
@@ -616,6 +620,7 @@ function runOneSim() {
         // For simplicity in 48-team format: top 2 advance guaranteed, 3rd place has a chance
         for (let i = 0; i < standings.length; i++) {
             teamStats[standings[i].name].groupPts = standings[i].pts;
+            teamStats[standings[i].name].groupFinish = i + 1;
         }
         groupWinners[g] = standings;
     }
@@ -804,7 +809,7 @@ function runSimulation() {
                 r32Pts: 0, r16Pts: 0, qfPts: 0, sfPts: 0, finalPts: 0,
                 potBonus: 0, totalPts: 0,
             };
-            advAccum[t.name] = { advance: 0, winR32: 0, soR32: 0, winR16: 0, soR16: 0, winQF: 0, soQF: 0, winSF: 0, soSF: 0, winFinal: 0, soFinal: 0 };
+            advAccum[t.name] = { grp1st: 0, grp2nd: 0, grp3rd: 0, grp4th: 0, advance: 0, winR32: 0, soR32: 0, winR16: 0, soR16: 0, winQF: 0, soQF: 0, winSF: 0, soSF: 0, winFinal: 0, soFinal: 0 };
         }
     }
 
@@ -830,6 +835,10 @@ function runSimulation() {
                 a.totalPts += stats.totalPts;
                 // Track advancement
                 const ad = advAccum[name];
+                if (stats.groupFinish === 1) ad.grp1st++;
+                else if (stats.groupFinish === 2) ad.grp2nd++;
+                else if (stats.groupFinish === 3) ad.grp3rd++;
+                else ad.grp4th++;
                 if (stats.advanceBonus > 0) ad.advance++;
                 if (stats.r32Pts >= 10) ad.winR32++;
                 else if (stats.r32Pts > 0) ad.soR32++;
@@ -874,6 +883,8 @@ function runSimulation() {
             for (const [name, ad] of Object.entries(advAccum)) {
                 advResults[name] = {
                     group: accum[name].group,
+                    grp1st: ad.grp1st / numSims, grp2nd: ad.grp2nd / numSims,
+                    grp3rd: ad.grp3rd / numSims, grp4th: ad.grp4th / numSims,
                     advance: ad.advance / numSims,
                     winR32: ad.winR32 / numSims, soR32: ad.soR32 / numSims,
                     winR16: ad.winR16 / numSims, soR16: ad.soR16 / numSims,
@@ -1041,6 +1052,10 @@ function renderAdvancement() {
     tbody.innerHTML = data.map(t => `<tr>
         <td class="team-name">${t.name}</td>
         <td class="group-cell">${t.group}</td>
+        <td><span style="color:#34d399">${fmtPct(t.grp1st)}</span></td>
+        <td><span style="color:#60a5fa">${fmtPct(t.grp2nd)}</span></td>
+        <td><span style="color:#fbbf24">${fmtPct(t.grp3rd)}</span></td>
+        <td><span style="color:#ef4444">${fmtPct(t.grp4th)}</span></td>
         <td>${bar(t.advance, '#22c55e')} <span style="color:#22c55e">${fmtPct(t.advance)}</span></td>
         <td>${winSo(t.winR32, t.soR32, '#3b82f6')}</td>
         <td>${winSo(t.winR16, t.soR16, '#6366f1')}</td>
