@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v11</title>
+    <title>WC Calcutta v12</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -400,7 +400,10 @@
 <div class="sidebar">
     <div class="sidebar-header">
         <h2>Team Ratings</h2>
-        <button onclick="resetElo()">Reset</button>
+        <div style="display:flex;gap:4px;">
+            <button onclick="calibrateToMarket()" style="background:#f59e0b;color:#000;font-size:0.65rem;padding:4px 6px;" title="Auto-adjust ELOs to match Kalshi market odds">Kalshi</button>
+            <button onclick="resetElo()">Reset</button>
+        </div>
     </div>
     <div class="sidebar-legend">
         <span><span class="dot" style="background:#64748b"></span> Base</span>
@@ -1188,6 +1191,130 @@ function resetElo() {
             teams[i].adj = 0;
         }
     }
+    renderEloEditor();
+    renderMatchups();
+}
+
+// ====== KALSHI MARKET CALIBRATION ======
+// Kalshi match odds [teamA, teamB, pA_win, pB_win] (draw excluded, we use h2h ratio)
+const KALSHI_MATCHES = [
+    // Matchday 1
+    ["Mexico", "South Africa", 0.64, 0.11],
+    ["United States", "Paraguay", 0.48, 0.27],
+    ["Qatar", "Switzerland", 0.10, 0.73],
+    ["Brazil", "Morocco", 0.63, 0.17],
+    ["Haiti", "Scotland", 0.16, 0.67],
+    ["Germany", "Curaçao", 0.90, 0.03],
+    ["Netherlands", "Japan", 0.49, 0.29],
+    ["Ivory Coast", "Ecuador", 0.23, 0.43],
+    ["Spain", "Cape Verde", 0.89, 0.05],
+    ["Belgium", "Egypt", 0.62, 0.24],
+    ["Saudi Arabia", "Uruguay", 0.12, 0.63],
+    ["Iran", "New Zealand", 0.54, 0.17],
+    ["France", "Senegal", 0.69, 0.14],
+    ["Argentina", "Algeria", 0.77, 0.14],
+    ["Austria", "Jordan", 0.73, 0.14],
+    ["England", "Croatia", 0.58, 0.22],
+    ["Ghana", "Panama", 0.49, 0.28],
+    ["Uzbekistan", "Colombia", 0.15, 0.76],
+    // Matchday 2
+    ["Canada", "Qatar", 0.68, 0.29],
+    ["Mexico", "South Korea", 0.54, 0.27],
+    ["United States", "Australia", 0.55, 0.39],
+    ["Scotland", "Morocco", 0.58, 0.67],
+    ["Brazil", "Haiti", 0.95, 0.05],
+    ["Germany", "Ivory Coast", 0.75, 0.35],
+    ["Ecuador", "Curaçao", 0.76, 0.06],
+    ["Tunisia", "Japan", 0.26, 0.59],
+    ["Spain", "Saudi Arabia", 0.84, 0.06],
+    ["Belgium", "Iran", 0.79, 0.45],
+    ["Uruguay", "Cape Verde", 0.72, 0.30],
+    ["New Zealand", "Egypt", 0.28, 0.44],
+    ["Argentina", "Austria", 0.52, 0.26],
+    ["Norway", "Senegal", 0.50, 0.37],
+    ["Jordan", "Algeria", 0.48, 0.64],
+    ["Portugal", "Uzbekistan", 0.79, 0.08],
+    ["England", "Ghana", 0.76, 0.12],
+    ["Panama", "Croatia", 0.45, 0.35],
+    // Matchday 3
+    ["Switzerland", "Canada", 0.69, 0.59],
+    ["Morocco", "Haiti", 0.75, 0.47],
+    ["Scotland", "Brazil", 0.39, 0.48],
+    ["South Africa", "South Korea", 0.15, 0.65],
+    ["Curaçao", "Ivory Coast", 0.30, 0.15],
+    ["Ecuador", "Germany", 0.20, 0.64],
+    ["Tunisia", "Netherlands", 0.47, 0.78],
+    ["Paraguay", "Australia", 0.75, 0.57],
+    ["Norway", "France", 0.16, 0.58],
+    ["Cape Verde", "Saudi Arabia", 0.78, 0.50],
+    ["Uruguay", "Spain", 0.45, 0.50],
+    ["Egypt", "Iran", 0.60, 0.30],
+    ["New Zealand", "Belgium", 0.05, 0.77],
+    ["Croatia", "Ghana", 0.25, 0.49],
+    ["Panama", "England", 0.04, 0.81],
+    ["Colombia", "Portugal", 0.52, 0.39],
+    ["Algeria", "Austria", 0.55, 0.25],
+    ["Jordan", "Argentina", 0.05, 0.73],
+];
+
+function calibrateToMarket() {
+    // Build team name -> group/index lookup
+    const teamLookup = {};
+    for (const [g, teams] of Object.entries(GROUPS)) {
+        for (let i = 0; i < teams.length; i++) {
+            teamLookup[teams[i].name] = { group: g, idx: i };
+            // Also map alternate names
+            if (teams[i].name === "Bosnia & Herzegovina") teamLookup["Bosnia and Herzegovina"] = { group: g, idx: i };
+            if (teams[i].name === "IR Iran" || teams[i].name === "Iran") {
+                teamLookup["Iran"] = { group: g, idx: i };
+                teamLookup["IR Iran"] = { group: g, idx: i };
+            }
+        }
+    }
+
+    // Collect valid matches
+    const matches = [];
+    for (const [nameA, nameB, pA, pB] of KALSHI_MATCHES) {
+        const a = teamLookup[nameA], b = teamLookup[nameB];
+        if (!a || !b || pA + pB === 0) continue;
+        // Normalize to head-to-head (strip draw)
+        const h2hA = pA / (pA + pB);
+        // Implied ELO difference: diff = 400 * log10(h2hA / (1 - h2hA))
+        const impliedDiff = 400 * Math.log10(h2hA / (1 - h2hA));
+        matches.push({ a: nameA, b: nameB, impliedDiff });
+    }
+
+    // Solve for ELO adjustments using iterative least-squares
+    // We want adj[i] - adj[j] ≈ impliedDiff - (baseElo[i] - baseElo[j])
+    // i.e., adj[i] - adj[j] ≈ impliedDiff - baseDiff = residual
+    const teamNames = Object.keys(teamLookup).filter(n => {
+        const t = teamLookup[n];
+        return GROUPS[t.group][t.idx].name === n; // only canonical names
+    });
+    const adjMap = {};
+    teamNames.forEach(n => adjMap[n] = 0);
+
+    // Iterative relaxation (converges quickly)
+    for (let iter = 0; iter < 200; iter++) {
+        for (const { a, b, impliedDiff } of matches) {
+            if (!(a in adjMap) || !(b in adjMap)) continue;
+            const la = teamLookup[a], lb = teamLookup[b];
+            const baseA = GROUPS[la.group][la.idx].elo;
+            const baseB = GROUPS[lb.group][lb.idx].elo;
+            const currentDiff = (baseA + adjMap[a]) - (baseB + adjMap[b]);
+            const error = impliedDiff - currentDiff;
+            // Split the correction between both teams
+            adjMap[a] += error * 0.05;
+            adjMap[b] -= error * 0.05;
+        }
+    }
+
+    // Round and apply adjustments
+    for (const name of teamNames) {
+        const { group, idx } = teamLookup[name];
+        GROUPS[group][idx].adj = Math.round(adjMap[name] / 5) * 5; // round to nearest 5
+    }
+
     renderEloEditor();
     renderMatchups();
 }
