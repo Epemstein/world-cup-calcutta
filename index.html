@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v16</title>
+    <title>WC Calcutta v17</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -458,12 +458,21 @@
             <tr>
                 <th data-col="rank">#</th>
                 <th data-col="team" style="text-align:left">Team</th>
+                <th data-col="price">Fair $</th>
+                <th data-col="auctionPrice">Auction $</th>
                 <th data-col="group">Grp</th>
                 <th data-col="pot">Pot</th>
                 <th data-col="elo">ELO</th>
                 <th data-col="totalPts" class="sorted-desc">Exp Pts</th>
-                <th data-col="price">Fair Value</th>
-                <th data-col="auctionPrice">Auction $</th>
+                <th data-col="grp1st" style="color:#34d399">1st</th>
+                <th data-col="grp2nd" style="color:#60a5fa">2nd</th>
+                <th data-col="grp3rd" style="color:#fbbf24">3rd</th>
+                <th data-col="advance" style="color:#22c55e">Adv</th>
+                <th data-col="winR32">R32</th>
+                <th data-col="winR16">R16</th>
+                <th data-col="winQF">QF</th>
+                <th data-col="winSF">SF</th>
+                <th data-col="winFinal" style="color:#facc15">W</th>
             </tr>
         </thead>
         <tbody id="stageBody"></tbody>
@@ -1034,7 +1043,10 @@ function sortData(data, col, dir) {
 
 function renderAll() {
     if (!simResults) return;
-    const data = Object.entries(simResults).map(([name, s]) => ({ name, ...s }));
+    const data = Object.entries(simResults).map(([name, s]) => {
+        const adv = advResults ? advResults[name] : {};
+        return { name, ...s, ...adv };
+    });
     renderStageTable(data);
     renderBreakdownTable(data);
     renderMatchups();
@@ -1046,6 +1058,7 @@ function renderStageTable(data) {
     const sorted = sortData(data, sortCol, sortDir);
     const totalPts = sorted.reduce((s, t) => s + t.totalPts, 0);
     const potSize = parseFloat(document.getElementById('potSize').value) || 0;
+    const fmtPct = v => v > 0 ? (v * 100).toFixed(1) + '%' : '—';
 
     const tbody = document.getElementById('stageBody');
     tbody.innerHTML = sorted.map((t, i) => {
@@ -1055,14 +1068,23 @@ function renderStageTable(data) {
         return `<tr>
             <td>${i + 1}</td>
             <td class="team-name">${t.name}</td>
-            <td class="group-cell">${t.group}</td>
-            <td class="pot-cell">P${t.pot}</td>
-            <td class="elo-cell">${t.elo}</td>
-            <td class="total-pts">${t.totalPts.toFixed(1)}</td>
             <td class="price-cell">$${fairValue.toFixed(0)}</td>
             <td><input type="number" id="${auctionKey}" value="${existingAuction}" min="0" step="1"
                 style="width:60px;padding:2px 4px;background:#0f1923;border:1px solid #334155;color:#34d399;border-radius:3px;text-align:center;font-size:0.8rem;"
                 placeholder="—"></td>
+            <td class="group-cell">${t.group}</td>
+            <td class="pot-cell">P${t.pot}</td>
+            <td class="elo-cell">${t.elo}</td>
+            <td class="total-pts">${t.totalPts.toFixed(1)}</td>
+            <td style="color:#34d399">${fmtPct(t.grp1st || 0)}</td>
+            <td style="color:#60a5fa">${fmtPct(t.grp2nd || 0)}</td>
+            <td style="color:#fbbf24">${fmtPct(t.grp3rd || 0)}</td>
+            <td style="color:#22c55e">${fmtPct(t.advance || 0)}</td>
+            <td>${fmtPct(t.winR32 || 0)}</td>
+            <td>${fmtPct(t.winR16 || 0)}</td>
+            <td>${fmtPct(t.winQF || 0)}</td>
+            <td>${fmtPct(t.winSF || 0)}</td>
+            <td style="color:#facc15">${fmtPct(t.winFinal || 0)}</td>
         </tr>`;
     }).join('');
 
