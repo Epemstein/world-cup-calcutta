@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v24</title>
+    <title>WC Calcutta v25</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1694,18 +1694,8 @@ auctionRef.on('value', (snapshot) => {
     for (const [name, price] of Object.entries(data)) {
         auctionPrices[name] = price;
     }
-    // Update input fields if they exist
-    document.querySelectorAll('#stageBody input[type="number"]').forEach(input => {
-        // Find team name from the row
-        const row = input.closest('tr');
-        const teamName = row?.querySelector('.team-name')?.textContent;
-        if (teamName && data[teamName] != null) {
-            input.value = data[teamName];
-        } else if (teamName) {
-            input.value = '';
-        }
-    });
-    updateStageValues();
+    // Full re-render to update inputs, fair values, edges, and row opacity
+    if (simResults) renderAll();
     suppressSync = false;
 });
 
@@ -1731,13 +1721,12 @@ eloRef.on('value', (snapshot) => {
     for (const [g, teams] of Object.entries(GROUPS)) {
         for (const t of teams) {
             const key = g + '_' + t.name.replace(/[^a-zA-Z0-9]/g, '_');
-            if (data[key] != null) {
-                t.adj = data[key];
-            }
+            t.adj = data[key] != null ? data[key] : 0;
         }
     }
     renderEloEditor();
     renderMatchups();
+    if (simResults) renderAll();
     suppressSync = false;
 });
 
