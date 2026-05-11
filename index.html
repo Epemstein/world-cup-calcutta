@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v14</title>
+    <title>WC Calcutta v15</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -401,7 +401,7 @@
     <div class="sidebar-header">
         <h2>Team Ratings</h2>
         <div style="display:flex;gap:4px;">
-            <button onclick="calibrateToMarket()" style="background:#f59e0b;color:#000;font-size:0.65rem;padding:4px 6px;" title="Auto-adjust ELOs to match Kalshi market odds">Kalshi</button>
+            <button onclick="calibrateToMarket()" style="background:#1a6dff;color:#fff;font-size:0.65rem;padding:4px 6px;" title="Auto-adjust ELOs to match FanDuel market odds">FanDuel</button>
             <button onclick="resetElo()">Reset</button>
         </div>
     </div>
@@ -1198,29 +1198,120 @@ function resetElo() {
 }
 
 // ====== KALSHI MARKET CALIBRATION ======
-// Kalshi match odds [teamA, teamB, pA_win, pB_win, pDraw]
-// Only using Matchday 1 — high volume, reliable odds
-// Matchday 2/3 markets have <$1k volume with unreliable draw pricing
-const KALSHI_MATCHES = [
-    ["Mexico", "South Africa", 0.64, 0.11, 0.22],
-    ["United States", "Paraguay", 0.48, 0.27, 0.24],
-    ["Qatar", "Switzerland", 0.10, 0.73, 0.14],
-    ["Brazil", "Morocco", 0.63, 0.17, 0.21],
-    ["Haiti", "Scotland", 0.16, 0.67, 0.18],
-    ["Germany", "Curaçao", 0.90, 0.03, 0.12],
-    ["Netherlands", "Japan", 0.49, 0.29, 0.25],
-    ["Ivory Coast", "Ecuador", 0.23, 0.43, 0.34],
-    ["Spain", "Cape Verde", 0.89, 0.05, 0.09],
-    ["Belgium", "Egypt", 0.62, 0.24, 0.24],
-    ["Saudi Arabia", "Uruguay", 0.12, 0.63, 0.23],
-    ["Iran", "New Zealand", 0.54, 0.17, 0.28],
-    ["France", "Senegal", 0.69, 0.14, 0.19],
-    ["Argentina", "Algeria", 0.77, 0.14, 0.16],
-    ["Austria", "Jordan", 0.73, 0.14, 0.17],
-    ["England", "Croatia", 0.58, 0.22, 0.27],
-    ["Ghana", "Panama", 0.49, 0.28, 0.26],
-    ["Uzbekistan", "Colombia", 0.15, 0.76, 0.20],
+// FanDuel match odds [teamA, teamB, oddsA, oddsDraw, oddsB] (American odds)
+// Matchday 1 + 2 — full coverage of all 48 teams
+const FD_MATCHES_RAW = [
+    // Matchday 1
+    ["Mexico", "South Africa", -190, 310, 550],
+    ["South Korea", "Czech Republic", 170, 220, 165],
+    ["Canada", "Bosnia & Herzegovina", -130, 250, 340],
+    ["United States", "Paraguay", 100, 240, 270],
+    ["Qatar", "Switzerland", 900, 470, -425],
+    ["Brazil", "Morocco", -185, 310, 500],
+    ["Haiti", "Scotland", 650, 390, -270],
+    ["Australia", "Turkey", 340, 250, -130],
+    ["Germany", "Curaçao", -2000, 1400, 4000],
+    ["Netherlands", "Japan", 100, 250, 260],
+    ["Ivory Coast", "Ecuador", 220, 210, 135],
+    ["Sweden", "Tunisia", -110, 240, 330],
+    ["Spain", "Cape Verde", -1100, 850, 2200],
+    ["Belgium", "Egypt", -165, 310, 440],
+    ["Saudi Arabia", "Uruguay", 500, 300, -195],
+    ["Iran", "New Zealand", -165, 280, 480],
+    ["France", "Senegal", -240, 340, 600],
+    ["Iraq", "Norway", 800, 470, -360],
+    ["Argentina", "Algeria", -310, 360, 700],
+    ["Austria", "Jordan", -320, 440, 700],
+    ["Portugal", "DR Congo", -425, 470, 850],
+    ["England", "Croatia", -145, 280, 410],
+    ["Ghana", "Panama", -120, 250, 290],
+    ["Uzbekistan", "Colombia", 700, 360, -270],
+    // Matchday 2
+    ["Czech Republic", "South Africa", 100, 230, 290],
+    ["Switzerland", "Bosnia & Herzegovina", -170, 280, 450],
+    ["Canada", "Qatar", -190, 290, 500],
+    ["Mexico", "South Korea", -120, 240, 330],
+    ["United States", "Australia", -140, 260, 350],
+    ["Scotland", "Morocco", 250, 230, 110],
+    ["Brazil", "Haiti", -2000, 1100, 3500],
+    ["Turkey", "Paraguay", 120, 220, 240],
+    ["Netherlands", "Sweden", -190, 290, 470],
+    ["Germany", "Ivory Coast", -210, 340, 490],
+    ["Ecuador", "Curaçao", -475, 470, 1100],
+    ["Tunisia", "Japan", 340, 240, -120],
+    ["Spain", "Saudi Arabia", -900, 700, 2000],
+    ["Uruguay", "Cape Verde", -240, 330, 600],
+    ["New Zealand", "Egypt", 430, 260, -165],
+    ["Argentina", "Austria", -165, 280, 410],
+    ["Norway", "Senegal", 105, 240, 250],
+    ["Jordan", "Algeria", 430, 280, -165],
+    ["Portugal", "Uzbekistan", -550, 500, 1100],
+    ["England", "Ghana", -320, 410, 750],
+    ["Panama", "Croatia", 600, 330, -240],
+    ["Colombia", "DR Congo", -210, 290, 600],
 ];
+
+// Convert American odds to implied probability
+function americanToProb(odds) {
+    if (odds < 0) return Math.abs(odds) / (Math.abs(odds) + 100);
+    return 100 / (odds + 100);
+}
+
+// De-vig and build match data
+const MARKET_MATCHES = FD_MATCHES_RAW.map(([a, b, oddsA, oddsD, oddsB]) => {
+    const rawA = americanToProb(oddsA);
+    const rawD = americanToProb(oddsD);
+    const rawB = americanToProb(oddsB);
+    const total = rawA + rawD + rawB;
+    return [a, b, rawA / total, rawB / total, rawD / total];
+});
+
+// FanDuel group winner odds [group, [[team, odds], ...]]
+const FD_GROUP_WINNERS_RAW = [
+    ["A", [["Mexico", -115], ["Czech Republic", 240], ["South Korea", 330], ["South Africa", 750]]],
+    ["B", [["Switzerland", 100], ["Canada", 210], ["Bosnia & Herzegovina", 350], ["Qatar", 2200]]],
+    ["C", [["Brazil", -280], ["Morocco", 450], ["Scotland", 1000], ["Haiti", 10000]]],
+    ["D", [["United States", 105], ["Turkey", 230], ["Paraguay", 310], ["Australia", 1000]]],
+    ["E", [["Germany", -210], ["Ecuador", 310], ["Ivory Coast", 500], ["Curaçao", 10000]]],
+    ["F", [["Netherlands", -120], ["Japan", 260], ["Sweden", 400], ["Tunisia", 1200]]],
+    ["G", [["Belgium", -250], ["Egypt", 490], ["Iran", 600], ["New Zealand", 2200]]],
+    ["H", [["Spain", -310], ["Uruguay", 400], ["Saudi Arabia", 1900], ["Cape Verde", 5500]]],
+    ["I", [["France", -180], ["Norway", 250], ["Senegal", 750], ["Iraq", 4500]]],
+    ["J", [["Argentina", -250], ["Austria", 400], ["Algeria", 700], ["Jordan", 5500]]],
+    ["K", [["Portugal", -180], ["Colombia", 210], ["DR Congo", 1300], ["Uzbekistan", 2200]]],
+    ["L", [["England", -240], ["Croatia", 400], ["Ghana", 1000], ["Panama", 2200]]],
+];
+
+// De-vig group winner odds
+const MARKET_GROUP_WINNERS = FD_GROUP_WINNERS_RAW.map(([group, teams]) => {
+    const probs = teams.map(([name, odds]) => [name, americanToProb(odds)]);
+    const total = probs.reduce((s, [, p]) => s + p, 0);
+    return [group, probs.map(([name, p]) => [name, p / total])];
+});
+
+// FanDuel outright World Cup winner odds
+const FD_WINNER_RAW = [
+    ["Spain", 430], ["France", 470], ["England", 650], ["Brazil", 750],
+    ["Argentina", 850], ["Germany", 1100], ["Portugal", 1100], ["Netherlands", 1900],
+    ["Norway", 2200], ["Belgium", 3000], ["Morocco", 4000], ["Colombia", 4000],
+    ["Japan", 5500], ["United States", 5500], ["Uruguay", 6500], ["Mexico", 6500],
+    ["Switzerland", 6500], ["Turkey", 8000], ["Croatia", 8000], ["Sweden", 8000],
+    ["Ecuador", 8000], ["Senegal", 8000], ["Austria", 10000], ["Paraguay", 10000],
+    ["Canada", 15000], ["Scotland", 15000], ["Ivory Coast", 17500], ["Egypt", 17500],
+    ["Czech Republic", 17500], ["Ghana", 22500], ["Algeria", 22500], ["Iran", 30000],
+    ["Australia", 30000], ["Tunisia", 30000], ["South Korea", 30000],
+    ["Bosnia & Herzegovina", 30000], ["DR Congo", 40000], ["Saudi Arabia", 50000],
+    ["New Zealand", 50000], ["Qatar", 50000], ["Cape Verde", 50000], ["Curaçao", 50000],
+    ["Haiti", 50000], ["Iraq", 50000], ["Jordan", 50000], ["Panama", 50000],
+    ["Uzbekistan", 50000], ["South Africa", 50000],
+];
+
+// De-vig outright winner odds
+const MARKET_WINNER = (() => {
+    const probs = FD_WINNER_RAW.map(([name, odds]) => [name, americanToProb(odds)]);
+    const total = probs.reduce((s, [, p]) => s + p, 0);
+    return Object.fromEntries(probs.map(([name, p]) => [name, p / total]));
+})();
 
 function calibrateToMarket() {
     // Build team name -> group/index lookup
@@ -1236,17 +1327,14 @@ function calibrateToMarket() {
         }
     }
 
-    // Collect valid matches with normalized probabilities
+    // Collect valid matches (already de-vigged)
     const matches = [];
-    for (const [nameA, nameB, pA, pB, pD] of KALSHI_MATCHES) {
+    for (const [nameA, nameB, pA, pB, pD] of MARKET_MATCHES) {
         const a = teamLookup[nameA], b = teamLookup[nameB];
         if (!a || !b || pA + pB === 0) continue;
-        // Normalize probabilities (Kalshi has overround)
-        const total = pA + pB + pD;
-        const normA = pA / total, normB = pB / total, normD = pD / total;
-        const h2hA = normA / (normA + normB);
+        const h2hA = pA / (pA + pB);
         const impliedDiff = 400 * Math.log10(h2hA / (1 - h2hA));
-        matches.push({ a: nameA, b: nameB, impliedDiff, normD });
+        matches.push({ a: nameA, b: nameB, impliedDiff, normD: pD });
     }
 
     // Step 1: Calibrate draw parameters to match market draw rates
