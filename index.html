@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v34</title>
+    <title>WC Calcutta v35</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1076,6 +1076,11 @@ function runSimulation() {
             document.getElementById('progressBar').classList.remove('active');
             document.getElementById('statusText').textContent =
                 `${numSims.toLocaleString()} simulations completed`;
+            // Push results to Firebase for sync
+            if (typeof db !== 'undefined' && !suppressSync) {
+                db.ref('simResults').set(simResults);
+                db.ref('advResults').set(advResults);
+            }
         }
     }
     requestAnimationFrame(runBatch);
@@ -2059,12 +2064,36 @@ document.getElementById('potSize').addEventListener('input', () => {
     if (!suppressSync) debounce('potSize', () => potRef.set(val));
 });
 
+// --- Sync Sim Results ---
+const simRef = db.ref('simResults');
+const advRef = db.ref('advResults');
+simRef.on('value', (snapshot) => {
+    const data = snapshot.val();
+    if (data && !suppressSync) {
+        simResults = data;
+        // Also fetch advResults
+        advRef.once('value', (advSnap) => {
+            const advData = advSnap.val();
+            if (advData) advResults = advData;
+            renderAll();
+            document.getElementById('statusText').textContent = 'Synced simulation results';
+        });
+    }
+});
+
 // ====== INIT ======
 renderEloEditor();
 renderMatchups();
 populateTeamList();
-// Auto-run simulation on page load
-setTimeout(() => runSimulation(), 100);
+// Check Firebase for existing sim results, otherwise auto-run
+simRef.once('value', (snapshot) => {
+    if (snapshot.val()) {
+        // Results exist in Firebase, listener above will handle rendering
+    } else {
+        // No results yet, run sim
+        setTimeout(() => runSimulation(), 100);
+    }
+});
 </script>
 
 </body>
