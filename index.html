@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v23</title>
+    <title>WC Calcutta v24</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -1791,6 +1791,8 @@ document.getElementById('potSize').addEventListener('input', () => {
 // ====== INIT ======
 renderEloEditor();
 renderMatchups();
+// Auto-run simulation on page load
+setTimeout(() => runSimulation(), 100);
 </script>
 
 </body>
