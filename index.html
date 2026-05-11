@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>World Cup Calcutta 2026 — v1</title>
+    <title>World Cup Calcutta 2026 — v2</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -175,6 +175,92 @@
             font-size: 0.85rem;
         }
 
+        /* Matchups tab */
+        .matchups-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 16px;
+        }
+        .matchup-group {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .matchup-group h3 {
+            font-size: 1rem;
+            color: #60a5fa;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 6px;
+        }
+        .matchup {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid #1a2a3a;
+            font-size: 0.82rem;
+        }
+        .matchup:last-child { border-bottom: none; }
+        .matchup .team-a, .matchup .team-b {
+            width: 90px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .matchup .team-a { text-align: right; }
+        .matchup .team-b { text-align: left; }
+        .matchup .vs { color: #475569; font-size: 0.75rem; flex-shrink: 0; }
+        .prob-bar-container {
+            flex: 1;
+            height: 18px;
+            display: flex;
+            border-radius: 3px;
+            overflow: hidden;
+            font-size: 0.65rem;
+            font-weight: 700;
+            min-width: 120px;
+        }
+        .prob-bar-container .prob-w {
+            background: #22c55e;
+            color: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .prob-bar-container .prob-d {
+            background: #64748b;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .prob-bar-container .prob-l {
+            background: #ef4444;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .advancement-section {
+            margin-top: 24px;
+        }
+        .advancement-section h2 {
+            font-size: 1.2rem;
+            margin-bottom: 16px;
+        }
+        .adv-table th { cursor: default; }
+        .adv-bar {
+            display: inline-block;
+            height: 14px;
+            background: #2563eb;
+            border-radius: 2px;
+            vertical-align: middle;
+            min-width: 1px;
+        }
+
         /* Progress bar */
         .progress-bar {
             height: 4px;
@@ -221,6 +307,7 @@
 <div class="tabs">
     <button class="tab-btn active" onclick="switchTab('stage')">Stage</button>
     <button class="tab-btn" onclick="switchTab('breakdown')">Points Breakdown</button>
+    <button class="tab-btn" onclick="switchTab('matchups')">Matchups</button>
     <button class="tab-btn" onclick="switchTab('elo')">Team Ratings</button>
 </div>
 
@@ -277,6 +364,32 @@
         </thead>
         <tbody id="breakdownBody"></tbody>
     </table>
+</div>
+
+<!-- MATCHUPS TAB -->
+<div class="tab-content" id="tab-matchups">
+    <h2 style="margin-bottom:16px; font-size:1.2rem;">Group Stage Matchups</h2>
+    <div class="matchups-container" id="matchupsGrid"></div>
+
+    <div class="advancement-section">
+        <h2>Knockout Round Advancement Probability</h2>
+        <p style="color:#64748b;font-size:0.8rem;margin-bottom:12px;">Run simulation to populate advancement probabilities.</p>
+        <table class="adv-table" id="advTable">
+            <thead>
+                <tr>
+                    <th style="text-align:left;cursor:default">Team</th>
+                    <th style="cursor:default">Grp</th>
+                    <th style="cursor:default">Advance</th>
+                    <th style="cursor:default">Win R32</th>
+                    <th style="cursor:default">Win R16</th>
+                    <th style="cursor:default">Win QF</th>
+                    <th style="cursor:default">Win SF</th>
+                    <th style="cursor:default">Win Final</th>
+                </tr>
+            </thead>
+            <tbody id="advBody"></tbody>
+        </table>
+    </div>
 </div>
 
 <!-- ELO TAB -->
@@ -382,6 +495,7 @@ const POT_BONUS = 48;
 
 // Simulation results stored globally
 let simResults = null;
+let advResults = null; // advancement probability tracking
 
 // ====== ELO-BASED MATCH SIMULATION ======
 function winProb(eloA, eloB) {
@@ -551,6 +665,7 @@ function runSimulation() {
 
     // Initialize accumulators
     const accum = {};
+    const advAccum = {}; // track advancement counts
     for (const [g, teams] of Object.entries(GROUPS)) {
         for (const t of teams) {
             accum[t.name] = {
@@ -560,6 +675,7 @@ function runSimulation() {
                 r32Pts: 0, r16Pts: 0, qfPts: 0, sfPts: 0, finalPts: 0,
                 potBonus: 0, totalPts: 0,
             };
+            advAccum[t.name] = { advance: 0, winR32: 0, winR16: 0, winQF: 0, winSF: 0, winFinal: 0 };
         }
     }
 
@@ -583,6 +699,14 @@ function runSimulation() {
                 a.finalPts += stats.finalPts;
                 a.potBonus += stats.potBonus;
                 a.totalPts += stats.totalPts;
+                // Track advancement
+                const ad = advAccum[name];
+                if (stats.advanceBonus > 0) ad.advance++;
+                if (stats.r32Pts > 0 && stats.r32Pts >= 10) ad.winR32++;
+                if (stats.r16Pts > 0 && stats.r16Pts >= 20) ad.winR16++;
+                if (stats.qfPts > 0 && stats.qfPts >= 50) ad.winQF++;
+                if (stats.sfPts > 0 && stats.sfPts >= 100) ad.winSF++;
+                if (stats.finalPts > 0 && stats.finalPts >= 200) ad.winFinal++;
             }
         }
         completed = end;
@@ -609,6 +733,19 @@ function runSimulation() {
                     finalPts: a.finalPts / numSims,
                     potBonus: a.potBonus / numSims,
                     totalPts: a.totalPts / numSims,
+                };
+            }
+            // Compute advancement probabilities
+            advResults = {};
+            for (const [name, ad] of Object.entries(advAccum)) {
+                advResults[name] = {
+                    group: accum[name].group,
+                    advance: ad.advance / numSims,
+                    winR32: ad.winR32 / numSims,
+                    winR16: ad.winR16 / numSims,
+                    winQF: ad.winQF / numSims,
+                    winSF: ad.winSF / numSims,
+                    winFinal: ad.winFinal / numSims,
                 };
             }
             renderAll();
@@ -641,6 +778,8 @@ function renderAll() {
     const data = Object.entries(simResults).map(([name, s]) => ({ name, ...s }));
     renderStageTable(data);
     renderBreakdownTable(data);
+    renderMatchups();
+    renderAdvancement();
 }
 
 function renderStageTable(data) {
@@ -708,6 +847,71 @@ function updatePrices() {
     if (simResults) renderAll();
 }
 
+// ====== MATCHUPS ======
+function computeMatchProbs(eloA, eloB) {
+    const pA = winProb(eloA, eloB);
+    const diff = Math.abs(eloA - eloB);
+    const drawProb = 0.25 * Math.exp(-diff / 600);
+    const winA = pA * (1 - drawProb);
+    const winB = (1 - pA) * (1 - drawProb);
+    return { winA: winA, draw: drawProb, winB: winB };
+}
+
+function renderMatchups() {
+    const grid = document.getElementById('matchupsGrid');
+    grid.innerHTML = Object.entries(GROUPS).map(([g, teams]) => {
+        const matches = [];
+        for (let i = 0; i < teams.length; i++) {
+            for (let j = i + 1; j < teams.length; j++) {
+                const p = computeMatchProbs(teams[i].elo, teams[j].elo);
+                matches.push({ a: teams[i].name, b: teams[j].name, ...p });
+            }
+        }
+        return `<div class="matchup-group">
+            <h3>Group ${g}</h3>
+            ${matches.map(m => {
+                const wPct = (m.winA * 100).toFixed(0);
+                const dPct = (m.draw * 100).toFixed(0);
+                const lPct = (m.winB * 100).toFixed(0);
+                return `<div class="matchup">
+                    <span class="team-a">${m.a}</span>
+                    <div class="prob-bar-container">
+                        <div class="prob-w" style="width:${wPct}%">${wPct > 8 ? wPct + '%' : ''}</div>
+                        <div class="prob-d" style="width:${dPct}%">${dPct > 8 ? dPct + '%' : ''}</div>
+                        <div class="prob-l" style="width:${lPct}%">${lPct > 8 ? lPct + '%' : ''}</div>
+                    </div>
+                    <span class="team-b">${m.b}</span>
+                </div>`;
+            }).join('')}
+        </div>`;
+    }).join('');
+}
+
+function renderAdvancement() {
+    if (!advResults) return;
+    const data = Object.entries(advResults).map(([name, a]) => ({ name, ...a }));
+    data.sort((a, b) => b.winFinal - a.winFinal || b.advance - a.advance);
+
+    const tbody = document.getElementById('advBody');
+    const maxBarWidth = 80; // px
+    const fmtPct = v => (v * 100).toFixed(1) + '%';
+    const bar = (v, color) => {
+        const w = Math.max(v * maxBarWidth, v > 0 ? 1 : 0);
+        return `<span class="adv-bar" style="width:${w}px;background:${color}"></span> ${fmtPct(v)}`;
+    };
+
+    tbody.innerHTML = data.map(t => `<tr>
+        <td class="team-name">${t.name}</td>
+        <td class="group-cell">${t.group}</td>
+        <td>${bar(t.advance, '#22c55e')}</td>
+        <td>${bar(t.winR32, '#3b82f6')}</td>
+        <td>${bar(t.winR16, '#6366f1')}</td>
+        <td>${bar(t.winQF, '#8b5cf6')}</td>
+        <td>${bar(t.winSF, '#a855f7')}</td>
+        <td>${bar(t.winFinal, '#facc15')}</td>
+    </tr>`).join('');
+}
+
 // ====== ELO EDITOR ======
 function renderEloEditor() {
     const grid = document.getElementById('eloGrid');
@@ -764,6 +968,7 @@ document.querySelectorAll('#stageTable th, #breakdownTable th').forEach(th => {
 
 // ====== INIT ======
 renderEloEditor();
+renderMatchups();
 </script>
 
 </body>
