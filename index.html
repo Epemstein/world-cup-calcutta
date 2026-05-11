@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v29</title>
+    <title>WC Calcutta v30</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -468,8 +468,8 @@
                 <th rowspan="2" data-col="pot">Pot</th>
                 <th rowspan="2" data-col="elo">ELO</th>
                 <th rowspan="2" data-col="totalPts" class="sorted-desc">Exp Pts</th>
-                <th colspan="5" style="cursor:default;border-bottom:1px solid #a78bfa;color:#a78bfa">Group Stage</th>
-                <th colspan="5" style="cursor:default;border-bottom:1px solid #f472b6;color:#f472b6">Knockout</th>
+                <th colspan="5" style="cursor:default;border-bottom:1px solid #475569;color:#94a3b8">Group Stage</th>
+                <th colspan="5" style="cursor:default;border-bottom:1px solid #475569;color:#94a3b8">Knockout</th>
             </tr>
             <tr>
                 <th data-col="grp1st">1st</th>
@@ -1430,7 +1430,7 @@ function renderEloEditor() {
             <h3>Group ${g}</h3>
             ${teams.map(t => `
                 <div class="team-row">
-                    <span class="team-label">${t.name} <small style="color:#64748b">P${t.pot}</small></span>
+                    <span class="team-label">${flag(t.name)} ${t.name}</span>
                     <div class="elo-fields">
                         <span class="base-elo">${t.elo}</span>
                         <input class="adj-input" type="number" value="${t.adj}" step="10"
