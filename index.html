@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v20</title>
+    <title>WC Calcutta v21</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -445,9 +445,12 @@
 <div class="tab-content active" id="tab-stage">
     <div class="stage-header">
         <h2>Expected Value by Team</h2>
-        <div class="pot-size-input">
-            <label>Total Pot ($):</label>
-            <input type="number" id="potSize" value="1000" min="0" step="100" oninput="updatePrices()">
+        <div style="display:flex;gap:20px;align-items:center;font-size:0.85rem;">
+            <div class="pot-size-input">
+                <label>Est. Pot ($):</label>
+                <input type="number" id="potSize" value="1000" min="0" step="100" oninput="updatePrices()">
+            </div>
+            <div id="auctionStats" style="color:#64748b;"></div>
         </div>
     </div>
     <table id="stageTable">
@@ -455,8 +458,10 @@
             <tr>
                 <th data-col="rank">#</th>
                 <th data-col="team" style="text-align:left">Team</th>
+                <th data-col="pctPot">% Pot</th>
                 <th data-col="price">Fair $</th>
                 <th data-col="auctionPrice">Auction $</th>
+                <th data-col="edge">Edge</th>
                 <th data-col="group">Grp</th>
                 <th data-col="pot">Pot</th>
                 <th data-col="elo">ELO</th>
@@ -1051,24 +1056,123 @@ function renderAll() {
     renderMarketComparison();
 }
 
+// Store auction prices persistently so they survive re-renders
+const auctionPrices = {};
+
+function getImpliedPot(data, totalPts) {
+    let draftedSpend = 0, draftedPctSum = 0, draftedCount = 0;
+    for (const t of data) {
+        const price = auctionPrices[t.name];
+        if (price != null && price > 0) {
+            draftedSpend += price;
+            draftedPctSum += t.totalPts / totalPts;
+            draftedCount++;
+        }
+    }
+    const estPot = parseFloat(document.getElementById('potSize').value) || 0;
+    // If some teams drafted, implied pot = spend / % of pot drafted
+    const impliedPot = draftedPctSum > 0 ? draftedSpend / draftedPctSum : estPot;
+    return { impliedPot, draftedSpend, draftedPctSum, draftedCount, estPot };
+}
+
+function onAuctionInput(name, value) {
+    const v = parseFloat(value);
+    if (!isNaN(v) && v > 0) {
+        auctionPrices[name] = v;
+    } else {
+        delete auctionPrices[name];
+    }
+    // Re-render just the prices without full re-render (preserve inputs)
+    updateStageValues();
+}
+
+function updateStageValues() {
+    if (!simResults) return;
+    const data = Object.entries(simResults).map(([name, s]) => {
+        const adv = advResults ? advResults[name] : {};
+        return { name, ...s, ...adv };
+    });
+    const totalPts = data.reduce((s, t) => s + t.totalPts, 0);
+    if (totalPts === 0) return;
+
+    const { impliedPot, draftedSpend, draftedCount, estPot } = getImpliedPot(data, totalPts);
+    const activePot = draftedCount > 0 ? impliedPot : estPot;
+
+    // Update stats display
+    const statsEl = document.getElementById('auctionStats');
+    if (draftedCount > 0) {
+        statsEl.innerHTML = `<span style="color:#34d399">Drafted: ${draftedCount}/48</span> · `
+            + `<span style="color:#facc15">Spent: $${draftedSpend.toFixed(0)}</span> · `
+            + `<span style="color:#60a5fa">Implied Pot: $${impliedPot.toFixed(0)}</span>`;
+    } else {
+        statsEl.innerHTML = '';
+    }
+
+    // Update fair values and edges in existing rows
+    document.querySelectorAll('#stageBody tr').forEach(row => {
+        const teamName = row.querySelector('.team-name')?.textContent;
+        if (!teamName) return;
+        const t = data.find(d => d.name === teamName);
+        if (!t) return;
+        const pct = t.totalPts / totalPts;
+        const fairValue = pct * activePot;
+        const auction = auctionPrices[t.name];
+        const isDrafted = auction != null && auction > 0;
+
+        // Update fair value cell
+        const fairCell = row.querySelector('.price-cell');
+        if (fairCell) fairCell.textContent = '$' + fairValue.toFixed(0);
+
+        // Update edge cell
+        const edgeCell = row.querySelector('.edge-cell');
+        if (edgeCell) {
+            if (isDrafted) {
+                const edge = fairValue - auction;
+                const pctEdge = auction > 0 ? (edge / auction * 100).toFixed(0) : 0;
+                const sign = edge >= 0 ? '+' : '';
+                edgeCell.innerHTML = `<span style="color:${edge >= 0 ? '#34d399' : '#ef4444'}">${sign}$${edge.toFixed(0)} (${sign}${pctEdge}%)</span>`;
+            } else {
+                edgeCell.textContent = '—';
+            }
+        }
+
+        // Style drafted rows
+        row.style.opacity = isDrafted ? '0.6' : '1';
+    });
+}
+
 function renderStageTable(data) {
     const sorted = sortData(data, sortCol, sortDir);
     const totalPts = sorted.reduce((s, t) => s + t.totalPts, 0);
-    const potSize = parseFloat(document.getElementById('potSize').value) || 0;
     const fmtPct = v => v > 0 ? (v * 100).toFixed(1) + '%' : '—';
+
+    const { impliedPot, draftedSpend, draftedCount, estPot } = getImpliedPot(sorted, totalPts);
+    const activePot = draftedCount > 0 ? impliedPot : estPot;
 
     const tbody = document.getElementById('stageBody');
     tbody.innerHTML = sorted.map((t, i) => {
-        const fairValue = totalPts > 0 ? (t.totalPts / totalPts * potSize) : 0;
-        const auctionKey = 'auction_' + t.name.replace(/[^a-zA-Z]/g, '_');
-        const existingAuction = document.getElementById(auctionKey)?.value || '';
-        return `<tr>
+        const pct = totalPts > 0 ? t.totalPts / totalPts : 0;
+        const fairValue = pct * activePot;
+        const auction = auctionPrices[t.name];
+        const isDrafted = auction != null && auction > 0;
+        const auctionVal = isDrafted ? auction : '';
+        let edgeHtml = '—';
+        if (isDrafted) {
+            const edge = fairValue - auction;
+            const pctEdge = auction > 0 ? (edge / auction * 100).toFixed(0) : 0;
+            const sign = edge >= 0 ? '+' : '';
+            edgeHtml = `<span style="color:${edge >= 0 ? '#34d399' : '#ef4444'}">${sign}$${edge.toFixed(0)} (${sign}${pctEdge}%)</span>`;
+        }
+        return `<tr style="${isDrafted ? 'opacity:0.6' : ''}">
             <td>${i + 1}</td>
             <td class="team-name">${t.name}</td>
+            <td style="color:#94a3b8">${(pct * 100).toFixed(1)}%</td>
             <td class="price-cell">$${fairValue.toFixed(0)}</td>
-            <td><input type="number" id="${auctionKey}" value="${existingAuction}" min="0" step="1"
+            <td><input type="number" value="${auctionVal}" min="0" step="1"
+                oninput="onAuctionInput('${t.name.replace(/'/g,"\\'")}',this.value)"
                 style="width:60px;padding:2px 4px;background:#0f1923;border:1px solid #334155;color:#34d399;border-radius:3px;text-align:center;font-size:0.8rem;"
                 placeholder="—"></td>
+            <td class="edge-cell">${edgeHtml}</td>
             <td class="group-cell">${t.group}</td>
             <td class="pot-cell">P${t.pot}</td>
             <td class="elo-cell">${t.elo}</td>
@@ -1084,6 +1188,9 @@ function renderStageTable(data) {
             <td style="color:#facc15">${fmtPct(t.winFinal || 0)}</td>
         </tr>`;
     }).join('');
+
+    // Update stats
+    updateStageValues();
 
     // Update sort indicators
     document.querySelectorAll('#stageTable th').forEach(th => {
@@ -1123,7 +1230,7 @@ function renderBreakdownTable(data) {
 }
 
 function updatePrices() {
-    if (simResults) renderAll();
+    if (simResults) updateStageValues();
 }
 
 // ====== MATCHUPS ======
