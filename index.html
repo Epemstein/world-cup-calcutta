@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WC Calcutta v30</title>
+    <title>WC Calcutta v31</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -547,17 +547,25 @@
 <!-- MARKET COMPARISON TAB -->
 <div class="tab-content" id="tab-market">
     <div class="market-section">
-        <h2>Outright Winner: Our Sim vs FanDuel</h2>
-        <p style="color:#64748b;font-size:0.8rem;margin-bottom:12px;">Run simulation to compare. Green = we're higher than market, Red = we're lower.</p>
+        <h2>Our Sim vs FanDuel</h2>
+        <p style="color:#64748b;font-size:0.8rem;margin-bottom:12px;">Green = we're higher than market, Red = we're lower.</p>
         <table id="marketWinnerTable">
             <thead>
                 <tr>
-                    <th data-mcol="rank" style="text-align:left">#</th>
-                    <th data-mcol="name" style="text-align:left">Team</th>
-                    <th data-mcol="marketProb">FanDuel</th>
-                    <th data-mcol="simProb">Our Sim</th>
+                    <th rowspan="2" data-mcol="rank" style="text-align:left">#</th>
+                    <th rowspan="2" data-mcol="name" style="text-align:left">Team</th>
+                    <th rowspan="2" data-mcol="group">Grp</th>
+                    <th colspan="3" style="cursor:default;border-bottom:1px solid #475569;color:#94a3b8">Win Group</th>
+                    <th colspan="3" style="cursor:default;border-bottom:1px solid #475569;color:#94a3b8">Win Tournament</th>
+                    <th rowspan="2" data-mcol="delta" style="text-align:left">Edge</th>
+                </tr>
+                <tr>
+                    <th data-mcol="grpMarket">FD</th>
+                    <th data-mcol="grpSim">Sim</th>
+                    <th data-mcol="grpDelta">Delta</th>
+                    <th data-mcol="marketProb">FD</th>
+                    <th data-mcol="simProb">Sim</th>
                     <th data-mcol="delta">Delta</th>
-                    <th data-mcol="delta" style="text-align:left">Edge</th>
                 </tr>
             </thead>
             <tbody id="marketWinnerBody"></tbody>
@@ -1345,31 +1353,46 @@ let marketSortDir = 'desc';
 function renderMarketComparison() {
     if (!advResults) return;
 
-    // --- Outright winner comparison ---
+    // Build group win market lookup: team name -> { group, marketProb }
+    const grpMarketLookup = {};
+    for (const [group, teams] of MARKET_GROUP_WINNERS) {
+        for (const [name, prob] of teams) {
+            grpMarketLookup[name] = { group, prob };
+        }
+    }
+
+    // --- Combined comparison ---
     const winnerData = [];
     for (const [name, marketProb] of Object.entries(MARKET_WINNER)) {
         const adv = advResults[name];
         const simProb = adv ? adv.winFinal : 0;
         const delta = simProb - marketProb;
-        winnerData.push({ name, marketProb, simProb, delta });
+        const grpInfo = grpMarketLookup[name] || { group: '?', prob: 0 };
+        const grpSim = adv ? adv.grp1st : 0;
+        const grpDelta = grpSim - grpInfo.prob;
+        winnerData.push({
+            name, group: grpInfo.group,
+            grpMarket: grpInfo.prob, grpSim, grpDelta,
+            marketProb, simProb, delta
+        });
     }
     winnerData.sort((a, b) => {
         let va = a[marketSortCol], vb = b[marketSortCol];
-        if (marketSortCol === 'name') return marketSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+        if (marketSortCol === 'name' || marketSortCol === 'group') return marketSortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
         return marketSortDir === 'asc' ? va - vb : vb - va;
     });
 
     const tbody = document.getElementById('marketWinnerBody');
-    const fmtPct = v => (v * 100).toFixed(2) + '%';
+    const fmtPct = v => (v * 100).toFixed(1) + '%';
     const fmtDelta = d => {
-        const pct = (d * 100).toFixed(2);
+        const pct = (d * 100).toFixed(1);
         const sign = d > 0 ? '+' : '';
         const cls = d > 0.005 ? 'delta-pos' : d < -0.005 ? 'delta-neg' : 'delta-neutral';
         return `<span class="${cls}">${sign}${pct}%</span>`;
     };
     const edgeBar = d => {
         const maxW = 60;
-        const w = Math.min(Math.abs(d) * 100 * 10, maxW); // scale: 1% = 10px
+        const w = Math.min(Math.abs(d) * 100 * 10, maxW);
         const color = d > 0 ? '#34d399' : '#ef4444';
         const label = d > 0 ? 'OVER' : d < 0 ? 'UNDER' : '';
         if (Math.abs(d) < 0.005) return '<span class="delta-neutral">—</span>';
@@ -1379,6 +1402,10 @@ function renderMarketComparison() {
     tbody.innerHTML = winnerData.map((t, i) => `<tr>
         <td>${i + 1}</td>
         <td class="team-name">${flag(t.name)} ${t.name}</td>
+        <td class="group-cell">${t.group}</td>
+        <td>${fmtPct(t.grpMarket)}</td>
+        <td>${fmtPct(t.grpSim)}</td>
+        <td>${fmtDelta(t.grpDelta)}</td>
         <td>${fmtPct(t.marketProb)}</td>
         <td>${fmtPct(t.simProb)}</td>
         <td>${fmtDelta(t.delta)}</td>
